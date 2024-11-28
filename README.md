@@ -15,6 +15,6 @@ Osservazioni sul modello di rete convoluzionale generativo basato sui Multi-Scal
 
 ### Tasks
 - [X] Proposal Accettato
-- [] Far partire il codice del deblurring preallenato dalla repository del paper
+- [ ] Far partire il codice del deblurring preallenato dalla repository del paper
 
 :smile:
