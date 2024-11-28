@@ -6,6 +6,8 @@ Osservazioni sul modello di rete convoluzionale generativo basato sui Multi-Scal
 - `edcnn/`: [python package](https://docs.python.org/3/tutorial/modules.html#packages) contenente la rete nelle sue varie declinazioni, assieme ai suoi pesi preallenati
 - `scripts/`: vari file `.py` dotati di `if __name__ == '__main__'`, quindi scripts
 - `tests/`: se le funzioni in `edcnn/` diventano particolarmente complicate, testarle con il package `unittest` ([Link](https://realpython.com/python-unittest/)) potrebbe essere utile
+- `assets/`: cartella contenente, sotto altre sottocartelle, tutti i dataset utilizzati. All'interno di essi, ci si aspetta di
+avere le sottocartelle `test/` e `train/`. Al momento, sono sono trackate da `git` per non inquinare il mio `git LFS Storage` :smile:
 
 ### Idee Possibili
 - interfaccia spicciola per visualizzazione features con `dearpygui`, per il punto strumenti di visualizzazione
@@ -18,3 +20,7 @@ Osservazioni sul modello di rete convoluzionale generativo basato sui Multi-Scal
 - [ ] Far partire il codice del deblurring preallenato dalla repository del paper
 
 :smile:
+
+### Riferimenti Python Utili
+- [NamedTuples](https://realpython.com/python-namedtuple/)
+- Il `MultiShapeKernel` usa *Grouped Convolution*, spiegazione al [link](https://paperswithcode.com/method/grouped-convolution#:~:text=A%20Grouped%20Convolution%20uses%20a,level%20and%20high%20level%20features.)
