@@ -2,40 +2,62 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+import logging
 from typing import NamedTuple
 
 
 class BasicConv(nn.Module):
-    """`BasicConv`: Classe implementante un layer convolutivo (sia in downsampling che in transpose) sandwitched da operazioni
-    comuni, ovvero\n
-    - Batch Normalization\n
+    """BasicConv: Classe implementante un layer convolutivo (sia in downsampling che in transpose) sandwitched da operazioni comuni, ovvero
+    - Batch Normalization
     - Nonlinearity di tipo ReLU
+    Attributes:
+        main: nn.Sequential contenente le operazioni compiute dal layer convolutivo
+        device: torch.device in cui gli nn.Parameters del modello risiedono
     """
+
     class Input(NamedTuple):
-        """`BasicConv.Input`: Parametri del costruttore di `BasicConv`"""
+        """
+        BasicConv.Input: Parametri del costruttore di BasicConv.
+
+        Attributes:
+            in_channel: Numero canali in input al layer convolutivo.
+            out_channel: Numero canali in output al layer convolutivo.
+            kernel_size: Dimensioni spaziali del kernel del layer convolutivo.
+            stride: Displacement in orizzontale e verticale del kernel nell'input da una locazione spaziale alla successiva.
+            bias: Booleano indicante se aggiungere il termine di bias in ogni convoluzione o no.
+            norm: Booleano indicante se fare la batch normalization o meno.
+            relu: Booleano indicante se applicare nonLinearity o meno.
+            transpose: Booleano indicante se applicare convoluzione in downsampling o convoluzione trasposta.
+            device: Device in cui i nn.Parameter del nn.Module risiedono.
+        """
         in_channel: int
-        """`BasicConv.Input.in_channel`: """
+        """BasicConv.Input.in_channel: Numero canali in input al layer convolutivo."""
         out_channel: int
-        """BasicConv.Input.out_channel: """
+        """BasicConv.Input.out_channel: Numero canali in output al layer convolutivo."""
         kernel_size: int
-        """BasicConv.Input.kernel_size: """
-        stride: int
-        """BasicConv.Input.stride:"""
+        """BasicConv.Input.kernel_size: Dimensioni spaziali del kernel del layer convolutivo."""
+        stride: int | (int, int)
+        """BasicConv.Input.stride: Displacement in orizzontale e verticale del kernel nell'input da una locazione spaziale alla successiva."""
         bias: bool = True
-        """BasicConv.Input.bias:"""
+        """BasicConv.Input.bias: Booleano indicante se aggiungere il termine di bias in ogni convoluzione o no."""
         norm: bool = False
-        """BasicConv.Input.norm:"""
+        """BasicConv.Input.norm: Booleano indicante se fare la batch normalization o meno."""
         relu: bool = True
-        """BasicConv.Input.relu:"""
+        """BasicConv.Input.relu: Booleano indicante se applicare nonLinearity o meno."""
         transpose: bool = False
-        """BasicConv.Input.transpose:"""
+        """BasicConv.Input.transpose: Booleano indicante se applicare convoluzione in downsampling o convoluzione trasposta."""
+        device: torch.device = torch.device('cpu')
+        """BasicConv.Input.device: Device in cui i nn.Parameter del nn.Module risiedono."""
 
     def __init__(self, conf: Input) -> None:
+        """``BasicConv.__init__``: Costruzione del ``torch.nn.Sequential`` implementante il layer convolutivo"""
         super(BasicConv, self).__init__()
         bias = True
         if conf.bias and conf.norm:
             bias = False
 
+        # aggiungi padding preciso per preservare la dimensione spaziale con stride unitario
         padding = conf.kernel_size // 2
         layers = list()
         if conf.transpose:
@@ -52,14 +74,26 @@ class BasicConv(nn.Module):
         if conf.relu:
             layers.append(nn.GELU())
         self.main = nn.Sequential(*layers)
+        self.device = conf.device
+
+        self.to(self.device)
+        match self.device.type:
+            case 'cuda':
+                # da rimuovere
+                logging.info('[BasicConv] Created BasicConv layer on the GPU')
+            case x if x != 'cpu':
+                # da rimuovere
+                logging.warning('[BasicConv] Created BasicConv layer on unrecognized device')
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.main.forward(x)
 
 
-class dynamic_filter(nn.Module):
+class DynamicFilter(nn.Module):
+    """``DynamicFilter``: ``nn.Module`` dedito ad applicare Layer `DSA`, *Dilated Square Attention*"""
+
     def __init__(self, inchannels, kernel_size=3, dilation=1, stride=1, group=8):
-        super(dynamic_filter, self).__init__()
+        super(DynamicFilter, self).__init__()
         self.stride = stride
         self.kernel_size = kernel_size
         self.group = group
@@ -168,10 +202,11 @@ class MultiShapeKernel(nn.Module):
         kernel_size: int = 3
         dilation: int = 1
         group: int = 8
+
     def __init__(self, dim, kernel_size=3, dilation=1, group=8):
         super().__init__()
 
-        self.square_att = dynamic_filter(inchannels=dim, dilation=dilation, group=group, kernel_size=kernel_size)
+        self.square_att = DynamicFilter(inchannels=dim, dilation=dilation, group=group, kernel_size=kernel_size)
         self.strip_att = cubic_attention(dim, group=group, dilation=dilation, kernel=kernel_size)
 
     def forward(self, x):
@@ -186,20 +221,20 @@ class DeepPoolLayer(nn.Module):
         k: int
         k_out: int
 
-    def __init__(self, k, k_out):
+    def __init__(self, conf: Input):
         super(DeepPoolLayer, self).__init__()
         self.pools_sizes = [8, 4, 2]
         dilation = [7, 9, 11]
         pools, convs, dynas = [], [], []
         for j, i in enumerate(self.pools_sizes):
             pools.append(nn.AvgPool2d(kernel_size=i, stride=i))
-            convs.append(nn.Conv2d(k, k, 3, 1, 1, bias=False))
-            dynas.append(MultiShapeKernel(dim=k, kernel_size=3, dilation=dilation[j]))
+            convs.append(nn.Conv2d(conf.k, conf.k, 3, 1, 1, bias=False))
+            dynas.append(MultiShapeKernel(dim=conf.k, kernel_size=3, dilation=dilation[j]))
         self.pools = nn.ModuleList(pools)
         self.convs = nn.ModuleList(convs)
         self.dynas = nn.ModuleList(dynas)
         self.relu = nn.GELU()
-        self.conv_sum = nn.Conv2d(k, k_out, 3, 1, 1, bias=False)
+        self.conv_sum = nn.Conv2d(conf.k, conf.k_out, 3, 1, 1, bias=False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x_size = x.size()
@@ -234,10 +269,10 @@ class ResBlock(nn.Module):
                 kernel_size=3,
                 stride=1
             )),
-            DeepPoolLayer(in_channel, out_channel) if filter_ else nn.Identity(),
-            BasicConv(out_channel, out_channel, kernel_size=3, stride=1, relu=False)
+            DeepPoolLayer(
+                DeepPoolLayer.Input(k=conf.in_channel, k_out=conf.out_channel)) if conf.filter_ else nn.Identity(),
+            BasicConv(BasicConv.Input(conf.out_channel, conf.out_channel, kernel_size=3, stride=1, relu=False))
         )
 
     def forward(self, x):
         return self.main(x) + x
-
