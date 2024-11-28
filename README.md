@@ -14,5 +14,5 @@ Osservazioni sul modello di rete convoluzionale generativo basato sui Multi-Scal
 - Introduzione di procedure di allenamento (eg combinando in qualche modo metodi non supervisionati?) la rete per dataset che non conosce (priority alta)
 
 ### Tasks
-[X] Proposal Accettato
-[] Far partire il codice del deblurring preallenato dalla repository del paper
+- [X] Proposal Accettato
+- [] Far partire il codice del deblurring preallenato dalla repository del paper
