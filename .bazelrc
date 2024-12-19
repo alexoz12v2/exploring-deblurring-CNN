@@ -1,0 +1,12 @@
+test --test_output=errors --enable_runfiles
+common --enable_bzlmod --nolegacy_external_runfiles
+
+# Windows requires these for multi-python support:
+build --enable_runfiles
+
+common:bazel7.x --incompatible_python_disallow_native_rules
+
+# https://bazel.build/configure/windows
+# decommentare se si presenta il problema della "Maximum Path Length Limitation"
+# startup --output_user_root=X:/tmp
+startup --windows_enable_symlinks
