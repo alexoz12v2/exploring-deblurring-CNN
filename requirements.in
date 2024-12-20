@@ -1,1 +1,18 @@
-torch
+# packages from the torch index url
+-i https://download.pytorch.org/whl/cu121
+--extra-index-url https://pypi.org/simple
+# torch
+https://download.pytorch.org/whl/cu121/torch-2.5.1%2Bcu121-cp39-cp39-win_amd64.whl#sha256=dc4249c520a6e9b1555e46bd70586a7cf33012800a51acb58a0c51464e3a786a
+nvidia-cublas-cu12
+nvidia-cuda-cupti-cu12
+nvidia-cuda-nvrtc-cu12
+nvidia-curand-cu12
+nvidia-cusolver-cu12
+nvidia-cusparse-cu12
+nvidia-nvjitlink-cu12
+nvidia-nvtx-cu12
+nvidia-cuda-runtime-cu12
+nvidia-cudnn-cu12
+absl-py
+dearpygui
+numpy

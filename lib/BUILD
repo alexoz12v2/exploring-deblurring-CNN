@@ -1,12 +1,16 @@
-load("@python_versions//3.9:defs.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
 load("@torch_pip_deps//:requirements.bzl", "requirement")
 
-py_binary(
-    name = "app",
-    main = "app.py",
-    srcs = [ ":app.py" ],
+py_library(
+    name = "lib",
+    srcs = [ 
+        ":__init__.py", 
+        ":layers/__init__.py",
+        ":layers/convir_layers.py",
+        ":layers/original/__init__.py",
+        ":layers/original/convir_layers.py",
+    ],
     deps = [
-        "//lib",
 		requirement("torch"),
 		requirement("nvidia-cublas-cu12"),
 		requirement("nvidia-cuda-cupti-cu12"),

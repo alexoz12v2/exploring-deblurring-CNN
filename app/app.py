@@ -1,14 +1,18 @@
 import torch
+import pathlib
+from absl import app, flags, logging
 
-def main() -> None:
+def main(args: list[str]) -> None:
+    logging.info(pathlib.Path.cwd())
+    logging.info(f"torch version: {torch.__version__}")
     if torch.cuda.is_available():
-        print("CUDA is available")
-        print("CUDA version:", torch.version.cuda)
-        print("Number of GPUs:", torch.cuda.device_count())
-        print("Current GPU:", torch.cuda.current_device())
-        print("GPU Name:", torch.cuda.get_device_name(torch.cuda.current_device()))
+        logging.info("CUDA is available")
+        logging.info(f"CUDA version: {torch.version.cuda}")
+        logging.info(f"Number of GPUs: {torch.cuda.device_count()}")
+        logging.info(f"Current GPU: {torch.cuda.current_device()}")
+        logging.info(f"GPU Name: {torch.cuda.get_device_name(torch.cuda.current_device())}")
     else:
-        print("CUDA is not available")
+        logging.info("CUDA is not available")
 
 if __name__ == "__main__":
-    main()
+    app.run(main)

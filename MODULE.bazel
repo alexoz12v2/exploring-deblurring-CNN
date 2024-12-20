@@ -21,6 +21,7 @@ pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
 pip.parse(
     hub_name = "torch_pip_deps",
     experimental_index_url = "https://download.pytorch.org/whl/cu121",
+    experimental_extra_index_urls = [ "https://pypi.org/simple" ],
     python_version = "3.9",
     requirements_lock = "requirements_torch_lock.txt",
 )
