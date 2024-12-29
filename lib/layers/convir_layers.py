@@ -76,7 +76,7 @@ from typing import NamedTuple, Tuple
 def _move_to(layer: nn.Module, dev: torch.device):
     layer.to(dev)
     # layer.device = dev module dovrebbe crearla da solo
-    match layer.device.type:
+    match dev.type:
         case "cuda":
             logging.info(f"[{str(layer)}] Created BasicConv layer on the GPU")
         case x if x != "cpu":
@@ -432,6 +432,7 @@ class DilatedAttention(nn.Module):
 
 class DRAWidthHeight(nn.Module):
     """DRAWidthHeight: Classe che implementa l'applicazione sequenziale del DRA lungo l'orizzontale e del DRA lungo la verticale
+    originale: `spatial_strip_att`
     Attributes:
         H_spatial_att (DilatedAttention): layer DRA lungo verticale
         W_spatial_att (DilatedAttention): layer DRA lungo orizzontale
@@ -661,6 +662,57 @@ class MultiScaleModule(nn.Module):
 
         return resl
 
+        
+class MultiShapeKernel(nn.Module):
+    def __init__(self, dim, kernel_size=3, dilation=1, group=8):
+        super().__init__()
+
+        # forse da spostare sul device giusto
+        self.square_att = DilatedAttention(DilatedAttention.Input(
+            inchannels=dim, mode=DilatedAttention.SpatialMode.DILATED_SQUARE_ATTENTION, dilation=dilation, group=group, kernel_size=kernel_size))
+        self.strip_att = DRAWidthHeight(DRAWidthHeight.Input(dim=dim, group=group, dilation=dilation, kernel=kernel_size))
+
+    def forward(self, x):
+
+        x1 = self.strip_att(x)
+        x2 = self.square_att(x)
+
+        return x1+x2
+
+
+class DeepPoolLayer(nn.Module):
+    def __init__(self, k, k_out):
+        super(DeepPoolLayer, self).__init__()
+        self.pools_sizes = [8,4,2]
+        dilation = [7,9,11]
+        pools, convs, dynas = [],[],[]
+        for j, i in enumerate(self.pools_sizes):
+            pools.append(nn.AvgPool2d(kernel_size=i, stride=i))
+            convs.append(nn.Conv2d(k, k, 3, 1, 1, bias=False))
+            dynas.append(MultiShapeKernel(dim=k, kernel_size=3, dilation=dilation[j]))
+        self.pools = nn.ModuleList(pools)
+        self.convs = nn.ModuleList(convs)
+        self.dynas = nn.ModuleList(dynas)
+        self.relu = nn.GELU()
+        self.conv_sum = nn.Conv2d(k, k_out, 3, 1, 1, bias=False)
+
+    def forward(self, x):
+        x_size = x.size()
+        resl = x
+        y_up = 0
+        for i in range(len(self.pools_sizes)):
+            if i == 0:
+                y = self.dynas[i](self.convs[i](self.pools[i](x)))
+            else:
+                y = self.dynas[i](self.convs[i](self.pools[i](x)+y_up))
+            resl = torch.add(resl, nnfunc.interpolate(y, x_size[2:], mode='bilinear', align_corners=True))
+            if i != len(self.pools_sizes)-1:
+                y_up = nnfunc.interpolate(y, scale_factor=2, mode='bilinear', align_corners=True)
+        resl = self.relu(resl)
+        resl = self.conv_sum(resl)
+
+        return resl
+
 
 class ResBlock(nn.Module):
     """ResBlock: nn.Module Implementante meta' del CNNBlock. Il CNNBlock e' composto da due di questi res block, il
@@ -705,8 +757,8 @@ class EBlock(nn.Module):
     def __init__(self, out_channel, num_res=8):
         super(EBlock, self).__init__()
 
-        layers = [ResBlock(out_channel, out_channel) for _ in range(num_res - 1)]
-        layers.append(ResBlock(out_channel, out_channel, filter=True))
+        layers = [ResBlock(ResBlock.Input(in_channel=out_channel, out_channel=out_channel)) for _ in range(num_res - 1)]
+        layers.append(ResBlock(ResBlock.Input(in_channel=out_channel, out_channel=out_channel, has_msm=True)))
 
         self.layers = nn.Sequential(*layers)
 
@@ -718,8 +770,8 @@ class DBlock(nn.Module):
     def __init__(self, channel, num_res=8):
         super(DBlock, self).__init__()
 
-        layers = [ResBlock(channel, channel) for _ in range(num_res - 1)]
-        layers.append(ResBlock(channel, channel, filter=True))
+        layers = [ResBlock(ResBlock.Input(in_channel=channel, out_channel=channel)) for _ in range(num_res - 1)]
+        layers.append(ResBlock(ResBlock.Input(in_channel=channel, out_channel=channel, has_msm=True)))
         self.layers = nn.Sequential(*layers)
 
     def forward(self, x):
@@ -730,14 +782,16 @@ class SCM(nn.Module):
     def __init__(self, out_plane):
         super(SCM, self).__init__()
         self.main = nn.Sequential(
-            BasicConv(3, out_plane // 4, kernel_size=3, stride=1, relu=True),
-            BasicConv(
-                out_plane // 4, out_plane // 2, kernel_size=1, stride=1, relu=True
+            BasicConv(BasicConv.Input(
+                in_channel=3, out_channel=out_plane // 4, kernel_size=3, stride=1, relu=True)),
+            BasicConv(BasicConv.Input(
+                in_channel=out_plane // 4, out_channel=out_plane // 2, kernel_size=1, stride=1, relu=True)
             ),
-            BasicConv(
-                out_plane // 2, out_plane // 2, kernel_size=3, stride=1, relu=True
+            BasicConv(BasicConv.Input(
+                in_channel=out_plane // 2, out_channel=out_plane // 2, kernel_size=3, stride=1, relu=True)
             ),
-            BasicConv(out_plane // 2, out_plane, kernel_size=1, stride=1, relu=False),
+            BasicConv(BasicConv.Input(
+                in_channel=out_plane // 2, out_channel=out_plane, kernel_size=1, stride=1, relu=False)),
             nn.InstanceNorm2d(out_plane, affine=True),
         )
 
@@ -749,8 +803,8 @@ class SCM(nn.Module):
 class FAM(nn.Module):
     def __init__(self, channel):
         super(FAM, self).__init__()
-        self.merge = BasicConv(
-            channel * 2, channel, kernel_size=3, stride=1, relu=False
+        self.merge = BasicConv(BasicConv.Input(
+            in_channel=channel * 2, out_channel=channel, kernel_size=3, stride=1, relu=False)
         )
 
     def forward(self, x1, x2):
@@ -773,34 +827,35 @@ class ConvIR(nn.Module):
 
         self.feat_extract = nn.ModuleList(
             [
-                BasicConv(3, base_channel, kernel_size=3, relu=True, stride=1),
-                BasicConv(
-                    base_channel, base_channel * 2, kernel_size=3, relu=True, stride=2
+                BasicConv(BasicConv.Input(
+                    in_channel=3, out_channel=base_channel, kernel_size=3, relu=True, stride=1)),
+                BasicConv(BasicConv.Input(
+                    in_channel=base_channel, out_channel=base_channel * 2, kernel_size=3, relu=True, stride=2)
                 ),
-                BasicConv(
-                    base_channel * 2,
-                    base_channel * 4,
+                BasicConv(BasicConv.Input(
+                    in_channel=base_channel * 2,
+                    out_channel=base_channel * 4,
                     kernel_size=3,
                     relu=True,
-                    stride=2,
+                    stride=2,)
                 ),
-                BasicConv(
-                    base_channel * 4,
-                    base_channel * 2,
+                BasicConv(BasicConv.Input(
+                    in_channel=base_channel * 4,
+                    out_channel=base_channel * 2,
                     kernel_size=4,
                     relu=True,
                     stride=2,
-                    transpose=True,
+                    transpose=True,)
                 ),
-                BasicConv(
-                    base_channel * 2,
-                    base_channel,
+                BasicConv(BasicConv.Input(
+                    in_channel=base_channel * 2,
+                    out_channel=base_channel,
                     kernel_size=4,
                     relu=True,
                     stride=2,
-                    transpose=True,
+                    transpose=True,)
                 ),
-                BasicConv(base_channel, 3, kernel_size=3, relu=False, stride=1),
+                BasicConv(BasicConv.Input(in_channel=base_channel, out_channel=3, kernel_size=3, relu=False, stride=1)),
             ]
         )
 
@@ -814,23 +869,23 @@ class ConvIR(nn.Module):
 
         self.Convs = nn.ModuleList(
             [
-                BasicConv(
-                    base_channel * 4,
-                    base_channel * 2,
+                BasicConv(BasicConv.Input(
+                    in_channel=base_channel * 4,
+                    out_channel=base_channel * 2,
                     kernel_size=1,
                     relu=True,
                     stride=1,
-                ),
-                BasicConv(
-                    base_channel * 2, base_channel, kernel_size=1, relu=True, stride=1
-                ),
+                )),
+                BasicConv(BasicConv.Input(
+                    in_channel=base_channel * 2, out_channel=base_channel, kernel_size=1, relu=True, stride=1
+                )),
             ]
         )
 
         self.ConvsOut = nn.ModuleList(
             [
-                BasicConv(base_channel * 4, 3, kernel_size=3, relu=False, stride=1),
-                BasicConv(base_channel * 2, 3, kernel_size=3, relu=False, stride=1),
+                BasicConv(BasicConv.Input(in_channel=base_channel * 4, out_channel=3, kernel_size=3, relu=False, stride=1)),
+                BasicConv(BasicConv.Input(in_channel=base_channel * 2, out_channel=3, kernel_size=3, relu=False, stride=1)),
             ]
         )
 

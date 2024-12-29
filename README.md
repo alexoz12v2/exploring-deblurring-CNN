@@ -34,6 +34,14 @@ py -3.10 -m venv .venv
 pip install -r requiremements_torch_lock.txt
 ```
 
+### Se bazel non aggiorna i files python
+stai attento a non modificare i files nei runfiles, solo quelli nel workspace. Se bazel non vede le modifiche fatte su un file workspace,
+rifai la build settndo una variabile d'ambiente a caso per forzare bazel a invalidare la build
+```
+bazel build --action_env="avariable=1" :mytarget
+```
+In questo modo viene invalidato il convenience symlink `bazel-bin`, quindi cancella anche quello
+
 # exploring-deblurring-CNN
 Osservazioni sul modello di rete convoluzionale generativo basato sui Multi-Scale Module. Codice originale https://github.com/c-yn/ConvIR/tree/main
 

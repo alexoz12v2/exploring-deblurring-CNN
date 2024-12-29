@@ -47,7 +47,7 @@ def download_and_extract_zip(file_id: str, folder_name: str) -> None:
                     "token_uri": "https://oauth2.googleapis.com/token",
                     "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
                     "client_secret": CLIENT_SECRET,
-                    "redirect_uris": ["http://localhost:3000"]
+                    "redirect_uris": ["http://localhost:3000"],
                 }
             }
             flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
@@ -99,7 +99,7 @@ def sayHello() -> None:
 
 def main(args: list[str]) -> None:
     sayHello()
-    # model: ConvIR = build_net()
+    model: ConvIR = build_net()
     file_id = "1y_wQ5G5B65HS_mdIjxKYTcnRys_AGh5v"
     target_folder = "data"
     download_and_extract_zip(file_id, target_folder)
