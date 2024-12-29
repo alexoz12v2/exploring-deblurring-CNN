@@ -662,30 +662,40 @@ class MultiScaleModule(nn.Module):
 
         return resl
 
-        
+
 class MultiShapeKernel(nn.Module):
     def __init__(self, dim, kernel_size=3, dilation=1, group=8):
         super().__init__()
 
         # forse da spostare sul device giusto
-        self.square_att = DilatedAttention(DilatedAttention.Input(
-            inchannels=dim, mode=DilatedAttention.SpatialMode.DILATED_SQUARE_ATTENTION, dilation=dilation, group=group, kernel_size=kernel_size))
-        self.strip_att = DRAWidthHeight(DRAWidthHeight.Input(dim=dim, group=group, dilation=dilation, kernel=kernel_size))
+        self.square_att = DilatedAttention(
+            DilatedAttention.Input(
+                inchannels=dim,
+                mode=DilatedAttention.SpatialMode.DILATED_SQUARE_ATTENTION,
+                dilation=dilation,
+                group=group,
+                kernel_size=kernel_size,
+            )
+        )
+        self.strip_att = DRAWidthHeight(
+            DRAWidthHeight.Input(
+                dim=dim, group=group, dilation=dilation, kernel=kernel_size
+            )
+        )
 
     def forward(self, x):
-
         x1 = self.strip_att(x)
         x2 = self.square_att(x)
 
-        return x1+x2
+        return x1 + x2
 
 
 class DeepPoolLayer(nn.Module):
     def __init__(self, k, k_out):
         super(DeepPoolLayer, self).__init__()
-        self.pools_sizes = [8,4,2]
-        dilation = [7,9,11]
-        pools, convs, dynas = [],[],[]
+        self.pools_sizes = [8, 4, 2]
+        dilation = [7, 9, 11]
+        pools, convs, dynas = [], [], []
         for j, i in enumerate(self.pools_sizes):
             pools.append(nn.AvgPool2d(kernel_size=i, stride=i))
             convs.append(nn.Conv2d(k, k, 3, 1, 1, bias=False))
@@ -704,10 +714,15 @@ class DeepPoolLayer(nn.Module):
             if i == 0:
                 y = self.dynas[i](self.convs[i](self.pools[i](x)))
             else:
-                y = self.dynas[i](self.convs[i](self.pools[i](x)+y_up))
-            resl = torch.add(resl, nnfunc.interpolate(y, x_size[2:], mode='bilinear', align_corners=True))
-            if i != len(self.pools_sizes)-1:
-                y_up = nnfunc.interpolate(y, scale_factor=2, mode='bilinear', align_corners=True)
+                y = self.dynas[i](self.convs[i](self.pools[i](x) + y_up))
+            resl = torch.add(
+                resl,
+                nnfunc.interpolate(y, x_size[2:], mode="bilinear", align_corners=True),
+            )
+            if i != len(self.pools_sizes) - 1:
+                y_up = nnfunc.interpolate(
+                    y, scale_factor=2, mode="bilinear", align_corners=True
+                )
         resl = self.relu(resl)
         resl = self.conv_sum(resl)
 
@@ -757,8 +772,17 @@ class EBlock(nn.Module):
     def __init__(self, out_channel, num_res=8):
         super(EBlock, self).__init__()
 
-        layers = [ResBlock(ResBlock.Input(in_channel=out_channel, out_channel=out_channel)) for _ in range(num_res - 1)]
-        layers.append(ResBlock(ResBlock.Input(in_channel=out_channel, out_channel=out_channel, has_msm=True)))
+        layers = [
+            ResBlock(ResBlock.Input(in_channel=out_channel, out_channel=out_channel))
+            for _ in range(num_res - 1)
+        ]
+        layers.append(
+            ResBlock(
+                ResBlock.Input(
+                    in_channel=out_channel, out_channel=out_channel, has_msm=True
+                )
+            )
+        )
 
         self.layers = nn.Sequential(*layers)
 
@@ -770,8 +794,15 @@ class DBlock(nn.Module):
     def __init__(self, channel, num_res=8):
         super(DBlock, self).__init__()
 
-        layers = [ResBlock(ResBlock.Input(in_channel=channel, out_channel=channel)) for _ in range(num_res - 1)]
-        layers.append(ResBlock(ResBlock.Input(in_channel=channel, out_channel=channel, has_msm=True)))
+        layers = [
+            ResBlock(ResBlock.Input(in_channel=channel, out_channel=channel))
+            for _ in range(num_res - 1)
+        ]
+        layers.append(
+            ResBlock(
+                ResBlock.Input(in_channel=channel, out_channel=channel, has_msm=True)
+            )
+        )
         self.layers = nn.Sequential(*layers)
 
     def forward(self, x):
@@ -782,16 +813,42 @@ class SCM(nn.Module):
     def __init__(self, out_plane):
         super(SCM, self).__init__()
         self.main = nn.Sequential(
-            BasicConv(BasicConv.Input(
-                in_channel=3, out_channel=out_plane // 4, kernel_size=3, stride=1, relu=True)),
-            BasicConv(BasicConv.Input(
-                in_channel=out_plane // 4, out_channel=out_plane // 2, kernel_size=1, stride=1, relu=True)
+            BasicConv(
+                BasicConv.Input(
+                    in_channel=3,
+                    out_channel=out_plane // 4,
+                    kernel_size=3,
+                    stride=1,
+                    relu=True,
+                )
             ),
-            BasicConv(BasicConv.Input(
-                in_channel=out_plane // 2, out_channel=out_plane // 2, kernel_size=3, stride=1, relu=True)
+            BasicConv(
+                BasicConv.Input(
+                    in_channel=out_plane // 4,
+                    out_channel=out_plane // 2,
+                    kernel_size=1,
+                    stride=1,
+                    relu=True,
+                )
             ),
-            BasicConv(BasicConv.Input(
-                in_channel=out_plane // 2, out_channel=out_plane, kernel_size=1, stride=1, relu=False)),
+            BasicConv(
+                BasicConv.Input(
+                    in_channel=out_plane // 2,
+                    out_channel=out_plane // 2,
+                    kernel_size=3,
+                    stride=1,
+                    relu=True,
+                )
+            ),
+            BasicConv(
+                BasicConv.Input(
+                    in_channel=out_plane // 2,
+                    out_channel=out_plane,
+                    kernel_size=1,
+                    stride=1,
+                    relu=False,
+                )
+            ),
             nn.InstanceNorm2d(out_plane, affine=True),
         )
 
@@ -803,8 +860,14 @@ class SCM(nn.Module):
 class FAM(nn.Module):
     def __init__(self, channel):
         super(FAM, self).__init__()
-        self.merge = BasicConv(BasicConv.Input(
-            in_channel=channel * 2, out_channel=channel, kernel_size=3, stride=1, relu=False)
+        self.merge = BasicConv(
+            BasicConv.Input(
+                in_channel=channel * 2,
+                out_channel=channel,
+                kernel_size=3,
+                stride=1,
+                relu=False,
+            )
         )
 
     def forward(self, x1, x2):
@@ -827,35 +890,62 @@ class ConvIR(nn.Module):
 
         self.feat_extract = nn.ModuleList(
             [
-                BasicConv(BasicConv.Input(
-                    in_channel=3, out_channel=base_channel, kernel_size=3, relu=True, stride=1)),
-                BasicConv(BasicConv.Input(
-                    in_channel=base_channel, out_channel=base_channel * 2, kernel_size=3, relu=True, stride=2)
+                BasicConv(
+                    BasicConv.Input(
+                        in_channel=3,
+                        out_channel=base_channel,
+                        kernel_size=3,
+                        relu=True,
+                        stride=1,
+                    )
                 ),
-                BasicConv(BasicConv.Input(
-                    in_channel=base_channel * 2,
-                    out_channel=base_channel * 4,
-                    kernel_size=3,
-                    relu=True,
-                    stride=2,)
+                BasicConv(
+                    BasicConv.Input(
+                        in_channel=base_channel,
+                        out_channel=base_channel * 2,
+                        kernel_size=3,
+                        relu=True,
+                        stride=2,
+                    )
                 ),
-                BasicConv(BasicConv.Input(
-                    in_channel=base_channel * 4,
-                    out_channel=base_channel * 2,
-                    kernel_size=4,
-                    relu=True,
-                    stride=2,
-                    transpose=True,)
+                BasicConv(
+                    BasicConv.Input(
+                        in_channel=base_channel * 2,
+                        out_channel=base_channel * 4,
+                        kernel_size=3,
+                        relu=True,
+                        stride=2,
+                    )
                 ),
-                BasicConv(BasicConv.Input(
-                    in_channel=base_channel * 2,
-                    out_channel=base_channel,
-                    kernel_size=4,
-                    relu=True,
-                    stride=2,
-                    transpose=True,)
+                BasicConv(
+                    BasicConv.Input(
+                        in_channel=base_channel * 4,
+                        out_channel=base_channel * 2,
+                        kernel_size=4,
+                        relu=True,
+                        stride=2,
+                        transpose=True,
+                    )
                 ),
-                BasicConv(BasicConv.Input(in_channel=base_channel, out_channel=3, kernel_size=3, relu=False, stride=1)),
+                BasicConv(
+                    BasicConv.Input(
+                        in_channel=base_channel * 2,
+                        out_channel=base_channel,
+                        kernel_size=4,
+                        relu=True,
+                        stride=2,
+                        transpose=True,
+                    )
+                ),
+                BasicConv(
+                    BasicConv.Input(
+                        in_channel=base_channel,
+                        out_channel=3,
+                        kernel_size=3,
+                        relu=False,
+                        stride=1,
+                    )
+                ),
             ]
         )
 
@@ -869,23 +959,47 @@ class ConvIR(nn.Module):
 
         self.Convs = nn.ModuleList(
             [
-                BasicConv(BasicConv.Input(
-                    in_channel=base_channel * 4,
-                    out_channel=base_channel * 2,
-                    kernel_size=1,
-                    relu=True,
-                    stride=1,
-                )),
-                BasicConv(BasicConv.Input(
-                    in_channel=base_channel * 2, out_channel=base_channel, kernel_size=1, relu=True, stride=1
-                )),
+                BasicConv(
+                    BasicConv.Input(
+                        in_channel=base_channel * 4,
+                        out_channel=base_channel * 2,
+                        kernel_size=1,
+                        relu=True,
+                        stride=1,
+                    )
+                ),
+                BasicConv(
+                    BasicConv.Input(
+                        in_channel=base_channel * 2,
+                        out_channel=base_channel,
+                        kernel_size=1,
+                        relu=True,
+                        stride=1,
+                    )
+                ),
             ]
         )
 
         self.ConvsOut = nn.ModuleList(
             [
-                BasicConv(BasicConv.Input(in_channel=base_channel * 4, out_channel=3, kernel_size=3, relu=False, stride=1)),
-                BasicConv(BasicConv.Input(in_channel=base_channel * 2, out_channel=3, kernel_size=3, relu=False, stride=1)),
+                BasicConv(
+                    BasicConv.Input(
+                        in_channel=base_channel * 4,
+                        out_channel=3,
+                        kernel_size=3,
+                        relu=False,
+                        stride=1,
+                    )
+                ),
+                BasicConv(
+                    BasicConv.Input(
+                        in_channel=base_channel * 2,
+                        out_channel=3,
+                        kernel_size=3,
+                        relu=False,
+                        stride=1,
+                    )
+                ),
             ]
         )
 
