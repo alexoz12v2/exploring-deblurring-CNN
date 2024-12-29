@@ -7,11 +7,11 @@ bazel_dep(name = "rules_python_gazelle_plugin", version = "1.0.0")
 
 # definizione di una toolchain con la python module extension
 python = use_extension("@rules_python//python/extensions:python.bzl", "python")
-python.toolchain(is_default=True, python_version="3.9")
+python.toolchain(is_default=True, python_version="3.10")
 
 # per fare il pinning ad una python version, genero un workspace contenente le rules 
 # python che usano quella vesione specificata dalla toolchain
-# uso: load("@python_versions//3.9:defs.bzl", "py_binary")
+# uso: load("@python_versions//3.10:defs.bzl", "py_binary")
 use_repo(python, "python_versions")
 
 # setup per PyPI dependencies. Puoi usare piu pip parses
@@ -22,13 +22,13 @@ pip.parse(
     hub_name = "torch_pip_deps",
     experimental_index_url = "https://download.pytorch.org/whl/cu121",
     experimental_extra_index_urls = [ "https://pypi.org/simple" ],
-    python_version = "3.9",
+    python_version = "3.10",
     requirements_lock = "requirements_torch_lock.txt",
 )
 
 # pip.parse(
 #     hub_name = "default_pip_deps",
-#     python_version = "3.9",
+#     python_version = "3.10",
 #     requirements_lock = "requirements_lock.txt",
 # )
 use_repo(pip, "torch_pip_deps")#, "default_pip_deps")

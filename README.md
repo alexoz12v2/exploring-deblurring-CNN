@@ -1,5 +1,18 @@
+### Installare bazel
+1. Scaricare `choco`
+2. Installare `bazelisk` con `choco`
+3. Abilitare utente corrente alla creazione del symlinks
+4. Abilitare Developer Mode
+5. Abilitare Long Directory paths
+
 ### Zippare fa schifo
 [Il link])(https://github.com/bazelbuild/bazel/issues/8981)
+
+### installare piu versioni
+```
+winget install Python.Python.3.10
+```
+verificare con `py --list` che tutte le versioni installate sono visibili
 
 ### Aggiornare le dipendenze
 ```
@@ -13,7 +26,7 @@ bazel run //app
 
 ### creazione virtual environment
 ```
-py -3.9 -m venv .venv
+py -3.10 -m venv .venv
 .venv\Scripts\activate
 pip install -r requiremements_torch_lock.txt
 ```
