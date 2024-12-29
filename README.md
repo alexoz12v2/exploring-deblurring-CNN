@@ -1,12 +1,15 @@
 ### Installare bazel
 1. Scaricare `choco`
+1. Scaricare `MSYS` e pacchetti usati da bazel 
+2. settare `BAZEL_SH`
+2. Scaricare java, go
 2. Installare `bazelisk` con `choco`
 3. Abilitare utente corrente alla creazione del symlinks
 4. Abilitare Developer Mode
 5. Abilitare Long Directory paths
 
 ### Zippare fa schifo
-[Il link])(https://github.com/bazelbuild/bazel/issues/8981)
+[Il link](https://github.com/bazelbuild/bazel/issues/8981)
 
 ### installare piu versioni
 ```

@@ -7,6 +7,9 @@ py_binary(
     srcs = [ ":app.py" ],
     deps = [
         "//lib",
+		requirement("google-api-python-client"),
+		requirement("google-auth-httplib2"),
+		requirement("google-auth-oauthlib"),
 		requirement("torch"),
 		requirement("nvidia-cublas-cu12"),
 		requirement("nvidia-cuda-cupti-cu12"),
