@@ -1,12 +1,36 @@
 ### Installare bazel
-1. Scaricare `choco`
-1. Scaricare `MSYS` e pacchetti usati da bazel 
-2. settare `BAZEL_SH`
-2. Scaricare java, go
-2. Installare `bazelisk` con `choco`
-3. Abilitare utente corrente alla creazione del symlinks
-4. Abilitare Developer Mode
-5. Abilitare Long Directory paths
+1. Scaricare `choco`: Da powershell amministratore
+```
+Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+```
+1. Scaricare `MSYS` e pacchetti usati da bazel: Andare su [Link installazione](https://msys2.org), scaricare ed esequire msys terminal, e installare i pacchetti
+```
+pacman -S zip unzip diffutils git patch
+```
+2. settare variabile d'ambiente `BAZEL_SH` a `C:\path\a\msys64\usr\bin`
+2. Scaricare java
+2. Installare `bazelisk` con `choco`: Powershell amministratore
+```
+choco install bazelisk
+```
+3. Abilitare utente corrente alla creazione del symlinks: Win + R ed eseguire `gpedit.msc` (se hai windows home, allora segui [la guida](https://www.majorgeeks.com/content/page/enable_group_policy_editor_in_windows_10_home_edition.html))
+   dopodiche recarsi in `ComputerConfiguration/Windows Settings/Security Settings/Local Policies/User Right Assignment` e alla policy `Create symbolic links` aggiungere
+   l'utente corrente (puoi vedere una lista degli utenti con il comando da `cmd`: `net user`)
+4. Abilitare "Developer Mode" da pannello di controllo
+5. Abilitare Long Directory paths: Win + R, `regedit`, e andare sotto `HKEY_LOCAL_MACHINE/SYSTEM/CurrentControlSet/Control/FileSystem` e settare a DWORD 1 `LongPathsEnabled`
+6. *(Opzionale)* Scaricare il formatter `wingett install astral-sh.ruff`, il quale, permette di eseguire, dalla root della repository, il comando `ruff format` per
+   formattare in automatico tutti i files `.py` secondo le regole specificate nel file `.ruff.toml`
+7. *(Opzionale)* Scaricare buildifier da [questo link](https://github.com/bazelbuild/buildtools/releases) (selezionare la versione windows amd64), rinominare il file in `buildifier.exe`,
+   scaricarlo in un posto a piacere ed inserirlo nella variabile di ambiente `Path`.
+   Questo fa si che l'estensione VSCode "bazel" possa individuare tutti i bazel targets
+
+### Creare Kaggle Token
+Andare su [Kaggle Account](https://www.kaggle.com/settings/account) e dopo aver fatto login, cliccare "Create New Token", il che apre un prompt per scaricare `kaggle.json`.
+Piazzarlo in 
+- `$XDG_CONFIG_HOME/kaggle/kaggle.json` (Linux)
+- `C:\Users\<Windows Username>\.kaggle\kaggle.json` (Windows, se hai spostato la `Users` directory usa quella)
+- `~/.kaggle/kaggle.json` (Altro)
+Una volta che `kaggle.json` sta al posto giusto, `kaggle.api.authenticate()` non dovrebbe dare problemi
 
 ### Zippare fa schifo
 [Il link](https://github.com/bazelbuild/bazel/issues/8981)

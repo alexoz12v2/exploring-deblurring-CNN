@@ -24,6 +24,7 @@ py_binary(
 		requirement("absl-py"),
 		requirement("dearpygui"),
 		requirement("numpy"),
+		requirement("kaggle"),
     ],
     visibility = [ "//visibility:public" ]
 )
