@@ -19,9 +19,14 @@ PROJECT_ID = "first-project-389416"
 CLIENT_ID = "1041884767277-03qbb9uing3bepgj3712827qlt22149d.apps.googleusercontent.com"
 CLIENT_SECRET = "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"
 
-# command line arguments: 
+# command line arguments:
 FLAGS = flags.FLAGS
-flags.DEFINE_boolean(name="window", default=None, help="Whether to run the app in window mode (meaning the command line tool already generated a mode3)")
+flags.DEFINE_boolean(
+    name="window",
+    default=None,
+    help="Whether to run the app in window mode (meaning the command line tool already generated a mode3)",
+)
+
 
 # scopes required per Google Drive API (read only)
 def google_drive_download_and_extract_zip(file_id: str, folder_name: str) -> None:
