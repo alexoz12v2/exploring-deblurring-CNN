@@ -13,10 +13,15 @@ from io import BytesIO
 import os
 import kaggle
 
+import window
+
 PROJECT_ID = "first-project-389416"
 CLIENT_ID = "1041884767277-03qbb9uing3bepgj3712827qlt22149d.apps.googleusercontent.com"
 CLIENT_SECRET = "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"
 
+# command line arguments: 
+FLAGS = flags.FLAGS
+flags.DEFINE_boolean(name="window", default=None, help="Whether to run the app in window mode (meaning the command line tool already generated a mode3)")
 
 # scopes required per Google Drive API (read only)
 def google_drive_download_and_extract_zip(file_id: str, folder_name: str) -> None:
@@ -102,17 +107,27 @@ def sayHello() -> None:
 
 def kaggle_download_and_extract_zip(dataset_name: str, output_path: Path) -> None:
     kaggle.api.authenticate()
-    kaggle.api.dataset_download_files(dataset_name, path=str(output_path), unzip=True)
+    kaggle.api.dataset_download_files(
+        dataset_name, path=str(output_path), quiet=False, unzip=True
+    )
 
 
 def main(args: list[str]) -> None:
-    sayHello()
-    device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
-    model: ConvIR = build_net().to(device)
-    file_id = "1y_wQ5G5B65HS_mdIjxKYTcnRys_AGh5v"
-    target_folder = "data"
-    # google_drive_download_and_extract_zip(file_id, target_folder)
-    kaggle_download_and_extract_zip("rahulbhalley/gopro-deblur", Path.cwd() / target_folder)
+    if FLAGS.window:
+        with window.Window("EDCNN", width=800, height=600) as w:
+            w.run_render_loop()
+    else:
+        sayHello()
+        device = (
+            torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+        )
+        model: ConvIR = build_net().to(device)
+        file_id = "1y_wQ5G5B65HS_mdIjxKYTcnRys_AGh5v"
+        target_folder = "data"
+        # google_drive_download_and_extract_zip(file_id, target_folder)
+        kaggle_download_and_extract_zip(
+            "rahulbhalley/gopro-deblur", Path.cwd() / target_folder
+        )
 
 
 if __name__ == "__main__":

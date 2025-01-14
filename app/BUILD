@@ -4,7 +4,7 @@ load("@torch_pip_deps//:requirements.bzl", "requirement")
 py_binary(
     name = "app",
     main = "app.py",
-    srcs = [ ":app.py" ],
+    srcs = [ ":app.py", ":window.py" ],
     deps = [
         "//lib",
 		requirement("google-api-python-client"),
