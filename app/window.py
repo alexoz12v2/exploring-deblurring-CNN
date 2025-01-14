@@ -237,7 +237,30 @@ class Window:
                 lines = ps.stdout.readlines()
                 path = Path(lines[-2].decode(encoding='utf-8').removesuffix("\r\n"))
         elif platform.system() == "Darwin":
-            raise ValueError("Operating System not implemented")
+            # TODO TEST how
+            # https://developer.apple.com/library/archive/documentation/LanguagesUtilities/Conceptual/MacAutomationScriptingGuide/PromptforaFileorFolder.html
+            path = str(self._state.dataset_path) if self._state.dataset_path.exists() else os.environ["HOME"]
+            script = (
+                'set chosenFolder to POSIX path of (choose folder with prompt "Select a folder:" default location POSIX file "{initial_directory}")\n'
+                'return chosenFolder'
+            ).format(initial_directory=path)
+    
+            try:
+                result = subprocess.run(
+                    ['osascript', '-e', script],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+
+                if result.returncode == 0:
+                    path = Path(result.stdout.strip())
+                else:
+                    logging.error("Error during folder selection: %s", result.stderr)
+                    path = Path(os.environ["HOME"])  # Default to home directory on error
+            except Exception as e:
+                logging.error("Exception while running osascript: %s", str(e))
+                path = Path(os.environ["HOME"])  # Default to home directory on exception
         else: # assumes platform is an X11 linux
             path = str(self._state.dataset_path) if self._state.dataset_path.exists() else '"' + os.environ["HOME"] + '"'
             script = (
