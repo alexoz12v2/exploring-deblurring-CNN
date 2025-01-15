@@ -5,13 +5,15 @@ load("@torch_pip_deps//:requirements.bzl", "requirement", "data_requirement")
 py_binary(
     name = "app",
     main = "app.py",
-    srcs = [ ":app.py", ":window.py", ":pywin32_patch.py", ":data.py" ],
+    srcs = [ ":app.py", ":window.py", ":pywin32_patch.py", ":data.py", ":utils.py" ],
     deps = [
         "//lib",
 		requirement("google-api-python-client"),
 		requirement("google-auth-httplib2"),
 		requirement("google-auth-oauthlib"),
 		requirement("torch"),
+		requirement("torchvision"),
+		requirement("tensorboard"),
 		requirement("nvidia-cublas-cu12"),
 		requirement("nvidia-cuda-cupti-cu12"),
 		requirement("nvidia-cuda-nvrtc-cu12"),

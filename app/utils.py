@@ -9,6 +9,19 @@ from absl import logging
 
 from lib.layers.gradual_warmup import GradualWarmupScheduler
 
+from multiprocessing import Value
+
+
+class AtomicBool:
+    def __init__(self, initial=False):
+        self.value = Value('b', initial)  # 'b' for boolean
+
+    def set(self, value):
+        self.value.value = value
+
+    def get(self):
+        return self.value.value
+
 
 # Valid -----------------------------------------------------------------------
 def _valid(model, args, ep):

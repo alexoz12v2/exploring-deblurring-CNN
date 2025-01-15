@@ -132,15 +132,15 @@ def logging_exception_hook(
     tb: TracebackType | None,
 ) -> None:
     # alternative: logging.exception
-    logging.error(
-        "Exeption %s [%s]\n\tTraceback:\n%s",
-        exc_value,
-        exc_type,
-        traceback.format_exception(exc_value, tb),
+    # Log the exception with the full traceback
+    logging.exception(
+        "Exception %s [%s] \n\tTraceback:\n%s",
+        exc_value, exc_type, traceback.format_tb(tb)
     )
 
 
 def main(args: list[str]) -> None:
+    # Set up the redirection
     sys.excepthook = logging_exception_hook
     if FLAGS.window:
         with window.Window("EDCNN", width=800, height=600) as w:

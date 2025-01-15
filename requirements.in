@@ -4,6 +4,7 @@
 # torch
 https://download.pytorch.org/whl/cu121/torch-2.5.1%2Bcu121-cp310-cp310-win_amd64.whl#sha256=9b22d6d98aa56f9317902dec0e066814a6edba1aada90110ceea2bb0678df22f
 https://download.pytorch.org/whl/cu121/torchvision-0.20.1%2Bcu121-cp310-cp310-win_amd64.whl#sha256=4cb1e44c1f7a4992f6d38a15633a1e694c093f1c52f3a036b1a719968031507a
+tensorboard
 nvidia-cublas-cu12
 nvidia-cuda-cupti-cu12
 nvidia-cuda-nvrtc-cu12

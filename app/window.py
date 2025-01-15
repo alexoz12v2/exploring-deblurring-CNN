@@ -3,6 +3,7 @@ from pathlib import Path
 from absl import logging
 from absl.logging import converter
 
+# python standaard
 from enum import Enum
 from types import TracebackType
 from typing import Optional, Type, NamedTuple, Tuple
@@ -10,6 +11,7 @@ from dataclasses import dataclass
 from abc import ABC, abstractmethod
 import traceback
 
+# os related
 import platform
 import os
 import subprocess
@@ -17,11 +19,19 @@ import io
 import shutil
 from shutil import copyfileobj
 
+# multiprocessing/multithreading
+import threading
+import multiprocessing
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+
+# must come before portalocker
 import pywin32_patch  # type: ignore # noqa: F401
 import portalocker as pl
 
+import utils
+from utils import AtomicBool
 import data
-
 
 class EDataset(str, Enum):
     gopro_blur = "kaggle goprodeblur"
@@ -35,7 +45,7 @@ class EDatasetPath(Enum):
 
 _dataset_folder_from_enum: dict[EDataset, dict[EDatasetPath, str]] = {
     EDataset.gopro_blur: {
-        EDatasetPath.folder: "gopro-deblur",
+        EDatasetPath.folder: "gopro_deblur",
         EDatasetPath.training_folder: "blur",
         EDatasetPath.test_folder: "sharp",
     }
@@ -131,6 +141,17 @@ class DPGConsoleHandler(logging.PythonHandler):
             to_remove = self.line_tags.pop(0)
             dpg.delete_item(to_remove)
 
+    def flush(self):
+        pass
+
+    def write(self, message):
+        dpg.add_text(
+            message, parent=self.console_tag, color=DPGConsoleHandler._color_info
+        )
+        if len(self.line_tags) > self.num_lines:
+            to_remove = self.line_tags.pop(0)
+            dpg.delete_item(to_remove)
+
 
 class Panel(ABC):
     def __init__(self, window, *, label: str, tag: str, **kwargs) -> None:
@@ -221,9 +242,11 @@ class Window:
         self._state = WindowState(
             dataset_path=Path.cwd() / "data", dataset_path_eelected=False
         )
-        self.console_handler = DPGConsoleHandler(Window._console_tag, 100)
         self._manual_resize = False
         self._panels: dict[str, Panel] = {}
+        self.downloading = AtomicBool(False)
+        self.io_workers = ThreadPoolExecutor(max_workers=1)
+        self.compute_workers = ProcessPoolExecutor(max_workers=4)
 
         dpg.create_context()
         # TODO  `small_icon` and `large_icon`, `decorated=False`, maybe `disable_close`
@@ -293,7 +316,9 @@ class Window:
                             dpg.add_text(
                                 "Dataset from `https://www.kaggle.com/datasets/rahulbhalley/gopro-deblur`"
                             )
-        self.add_window(Console(self, label="Console"))
+        c_window = Console(self, label="Console")
+        self.add_window(c_window)
+        self.console_handler = c_window.console_handler # TODO better
 
     def add_window(self, panel: Panel) -> None:
         self._panels[panel.tag] = panel
@@ -349,6 +374,9 @@ class Window:
         logging.info("Current Path: %s", dpg.get_value(app_data))
 
     def _on_dataset_selection(self, sender, app_data):
+        if self.downloading.get():
+            logging.error("Already downloading...")
+            return 
         if not self._state.dataset_path_eelected:
             logging.error("Before Choosing a Dataset, select the Download Path")
             return
@@ -359,12 +387,22 @@ class Window:
                 if not _dataset_check_existance(
                     self._state.dataset_path, EDataset.gopro_blur
                 ):
-                    data.dataset_make_available_gopro_deblur(self._state.dataset_path)
+                    self.io_workers.submit(
+                        data.datasets_make_available_gopro_deblur(
+                            self._state.dataset_path, self.console_handler, self.downloading
+                        )
+                    )
+                else:
+                    logging.info("Dataset %s already downloaded before", EDataset.gopro_blur.value)
             case _:
                 raise ValueError("Unrecognized dataset selected. How?")
 
     # Two methods: First therese python webview, the second is OS Specific scripting
     def _ask_directory(self):
+        if self.downloading.get():
+            logging.error("Cannot change directory while downloading a dataset")
+            return 
+
         """If nothing is selected it uses home"""
         path = None
         if platform.system() == "Windows":
