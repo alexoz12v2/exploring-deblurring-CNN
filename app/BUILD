@@ -5,7 +5,7 @@ load("@torch_pip_deps//:requirements.bzl", "requirement", "data_requirement")
 py_binary(
     name = "app",
     main = "app.py",
-    srcs = [ ":app.py", ":window.py", ":pywin32_patch.py" ],
+    srcs = [ ":app.py", ":window.py", ":pywin32_patch.py", ":data.py" ],
     deps = [
         "//lib",
 		requirement("google-api-python-client"),
@@ -42,9 +42,12 @@ py_binary(
 	}),
 	env = select({
 		"@bazel_tools//src/conditions:windows": {
-			"BAZEL_PYWIN_REMAP": "True" # could be anything
+			"BAZEL_PYWIN_REMAP": "True", # could be anything
+			"BAZEL_FIX_DIR": "True",
 		},
-		"//conditions:default": {}
+		"//conditions:default": {
+			"BAZEL_FIX_DIR": "True",
+		}
 	}),
     visibility = [ "//visibility:public" ]
 )

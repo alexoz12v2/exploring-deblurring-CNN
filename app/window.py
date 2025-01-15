@@ -14,28 +14,66 @@ import platform
 import os
 import subprocess
 import io
+import shutil
 from shutil import copyfileobj
 
 import pywin32_patch  # type: ignore # noqa: F401
 import portalocker as pl
+
+import data
+
 
 class EDataset(str, Enum):
     gopro_blur = "kaggle goprodeblur"
 
 
 class EDatasetPath(Enum):
-    folder = 0,
-    training_folder = 1,
+    folder = (0,)
+    training_folder = (1,)
     test_folder = 2
 
 
 _dataset_folder_from_enum: dict[EDataset, dict[EDatasetPath, str]] = {
     EDataset.gopro_blur: {
-        EDatasetPath.folder: 'gopro-deblur',
-        EDatasetPath.training_folder: 'blur',
-        EDatasetPath.test_folder: 'sharp'
+        EDatasetPath.folder: "gopro-deblur",
+        EDatasetPath.training_folder: "blur",
+        EDatasetPath.test_folder: "sharp",
     }
 }
+
+
+def _dataset_check_existance(datasets_path: Path, dataset: EDataset) -> bool:
+    # check that the 3 specified folders exist
+    main_path = datasets_path / _dataset_folder_from_enum[dataset][EDatasetPath.folder]
+    train_path = (
+        main_path / _dataset_folder_from_enum[dataset][EDatasetPath.training_folder]
+    )
+    test_path = main_path / _dataset_folder_from_enum[dataset][EDatasetPath.test_folder]
+    delete = False
+    # if the main path exists
+    if main_path.exists():
+        # then the two subpaths must also exist
+        if not (train_path.exists() and test_path.exists()):
+            delete = True
+        else:
+            # and each should contain at least 1 file
+            for path in [train_path, test_path]:
+                if not (path.is_dir() and len(list(path.iterdir())) > 0):
+                    delete = True
+                    break
+    else:
+        return False
+
+    if delete:
+        try:
+            shutil.rmtree(main_path)
+        except Exception as e:
+            logging.error("Couldn't delete invalid dataset path %s", main_path)
+            logging.exception(e)
+        return False
+
+    return True
+
 
 class Extent2D(NamedTuple):
     """screen space extent"""
@@ -71,7 +109,9 @@ class DPGConsoleHandler(logging.PythonHandler):
 
     def _level_to_color(self, level):
         std_level = converter.standard_to_absl(level)
-        print(f"Standard: {std_level}\nINFO: {logging.INFO}\nWARNING: {logging.WARNING}\nERROR: {logging.ERROR}")
+        print(
+            f"Standard: {std_level}\nINFO: {logging.INFO}\nWARNING: {logging.WARNING}\nERROR: {logging.ERROR}"
+        )
         if std_level >= logging.DEBUG:
             return DPGConsoleHandler._color_trace
         elif std_level >= logging.INFO:
@@ -84,7 +124,9 @@ class DPGConsoleHandler(logging.PythonHandler):
     def emit(self, record):
         log_entry = self.format(record)
         color = self._level_to_color(record.levelno)
-        self.line_tags.append(dpg.add_text(log_entry, parent=self.console_tag, color=color))
+        self.line_tags.append(
+            dpg.add_text(log_entry, parent=self.console_tag, color=color)
+        )
         if len(self.line_tags) > self.num_lines:
             to_remove = self.line_tags.pop(0)
             dpg.delete_item(to_remove)
@@ -279,11 +321,8 @@ class Window:
         exc_value: Optional[BaseException],
         tb: Optional[TracebackType],
     ) -> bool:
-        if hasattr(self, 'f_lock'):
-            pl.unlock(self.f_lock)
-            self.f_lock.close()
-            (self._state.dataset_path / Window._lock_file_name).unlink()
-            del self.f_lock
+        if hasattr(self, "f_lock"):
+            self._remove_file_lock()
 
         dpg.destroy_context()
         if exc_type is not None:
@@ -314,10 +353,13 @@ class Window:
             logging.error("Before Choosing a Dataset, select the Download Path")
             return
 
-        logging.info("Dataset selected: %s", repr(sender))
         match str(sender):
             case EDataset.gopro_blur.value:
-                logging.info("Dataset recognized: %s", EDataset.gopro_blur.value)
+                logging.info("Dataset selected: %s", EDataset.gopro_blur.value)
+                if not _dataset_check_existance(
+                    self._state.dataset_path, EDataset.gopro_blur
+                ):
+                    data.dataset_make_available_gopro_deblur(self._state.dataset_path)
             case _:
                 raise ValueError("Unrecognized dataset selected. How?")
 
@@ -438,18 +480,23 @@ class Window:
                 path = Path(lines[-1].decode(encoding="utf-8").removesuffix("\n"))
 
         if path.exists():
-            self._state.dataset_path = path
-            self._state.dataset_path_eelected = True
+            if hasattr(self, "f_lock") and self.f_lock is not None:
+                self._remove_file_lock()
 
             # create lock file (delete old one if existing)
             p_lock = path / Window._lock_file_name
-            if hasattr(self, 'f_lock'):
-                pl.unlock(self.f_lock)
-                del self.f_lock
+            self._state.dataset_path = path
+            self._state.dataset_path_eelected = True
 
-            self.f_lock = open(p_lock, 'w')
-            pl.lock(self.f_lock, pl.LockFlags.EXCLUSIVE) # lock the file
-                
+            self.f_lock = open(p_lock, "w")
+            pl.lock(self.f_lock, pl.LockFlags.EXCLUSIVE)  # lock the file
+
             dpg.set_value(Window._dataset_path_tag, str(path))
         logging.info("Dataset path: %s", self._state.dataset_path)
         return path
+
+    def _remove_file_lock(self):
+        pl.unlock(self.f_lock)
+        self.f_lock.close()
+        (self._state.dataset_path / Window._lock_file_name).unlink()
+        del self.f_lock

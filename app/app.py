@@ -1,7 +1,14 @@
+import os
+from pathlib import Path
+
+if __name__ == "__main__" and os.environ.get("BAZEL_FIX_DIR"):
+    main_module_path = Path(__file__).parent.parent
+    print(main_module_path)
+    os.chdir(main_module_path)
+
 import traceback
 from types import TracebackType
 import torch
-from pathlib import Path
 from absl import app, flags, logging
 from lib.layers.convir_layers import build_net, ConvIR
 import zipfile
@@ -12,7 +19,6 @@ from googleapiclient.errors import HttpError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from io import BytesIO
-import os
 import kaggle
 
 import window
@@ -120,9 +126,18 @@ def kaggle_download_and_extract_zip(dataset_name: str, output_path: Path) -> Non
     )
 
 
-def logging_exception_hook(exc_type: type[BaseException] | None, exc_value: BaseException | None, tb: TracebackType | None) -> None:
+def logging_exception_hook(
+    exc_type: type[BaseException] | None,
+    exc_value: BaseException | None,
+    tb: TracebackType | None,
+) -> None:
     # alternative: logging.exception
-    logging.error("Exeption %s [%s]\n\tTraceback:\n%s", exc_value, exc_type, traceback.format_exception(exc_value, tb))
+    logging.error(
+        "Exeption %s [%s]\n\tTraceback:\n%s",
+        exc_value,
+        exc_type,
+        traceback.format_exception(exc_value, tb),
+    )
 
 
 def main(args: list[str]) -> None:

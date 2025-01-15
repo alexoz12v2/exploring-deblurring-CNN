@@ -5,11 +5,16 @@ import pkgutil
 import importlib
 import os
 
+
 def _patch_win32_deps(max_attempts=5):
-    if not platform.system() == "Windows" or os.environ.get('BAZEL_PYWIN_REMAP') is None:
+    if (
+        not platform.system() == "Windows"
+        or os.environ.get("BAZEL_PYWIN_REMAP") is None
+    ):
         return
 
     import ctypes
+
     def find_pywin32_dir(path: Path) -> Path:
         for path in path.iterdir():
             if "pywin32" in path.name and path.is_dir():
@@ -31,17 +36,19 @@ def _patch_win32_deps(max_attempts=5):
             if file.name.startswith("pywintypes") and file.suffix == ".dll":
                 pywintypes_dll = file
                 break
-        
+
         if pywintypes_dll:
             # Load the DLL using ctypes
             dll = ctypes.CDLL(str(pywintypes_dll))
             print(str(dll))
             # Add a reference in sys.modules for pywintypes
-            sys.modules['pywintypes'] = dll
+            sys.modules["pywintypes"] = dll
             import win32._win32sysloader
-            sys.modules['_win32sysloader'] = win32._win32sysloader
+
+            sys.modules["_win32sysloader"] = win32._win32sysloader
             import win32.lib.pywintypes
-            sys.modules['pywintypes'] = win32.lib.pywintypes
+
+            sys.modules["pywintypes"] = win32.lib.pywintypes
             print(f"Loaded pywintypes from {pywintypes_dll}")
         else:
             print("Failed to locate pywintypes DLL")
@@ -56,12 +63,14 @@ def _patch_win32_deps(max_attempts=5):
         attempt = 0
 
         for namespace in namespaces_to_remap:
-            for finder, name, ispkg in pkgutil.iter_modules(importlib.import_module(namespace).__path__, namespace + "."):
-                alias = name[len(namespace) + 1:]
+            for finder, name, ispkg in pkgutil.iter_modules(
+                importlib.import_module(namespace).__path__, namespace + "."
+            ):
+                alias = name[len(namespace) + 1 :]
                 if alias in sys.modules:
                     continue  # Skip already remapped modules
                 if name == "win32.lib.win32traceutil":
-                    continue # skip this as it remaps output
+                    continue  # skip this as it remaps output
 
                 try:
                     module = importlib.import_module(name)
@@ -102,5 +111,6 @@ def _patch_win32_deps(max_attempts=5):
                 print(f"  {name} (alias: {alias})")
 
     remap_win32_modules()
+
 
 _patch_win32_deps()

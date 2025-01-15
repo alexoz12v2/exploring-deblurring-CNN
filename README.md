@@ -92,3 +92,9 @@ avere le sottocartelle `test/` e `train/`. Al momento, sono sono trackate da `gi
 ### Riferimenti Python Utili
 - [NamedTuples](https://realpython.com/python-namedtuple/)
 - Il `MultiShapeKernel` usa *Grouped Convolution*, spiegazione al [link](https://paperswithcode.com/method/grouped-convolution#:~:text=A%20Grouped%20Convolution%20uses%20a,level%20and%20high%20level%20features.)
+
+### Dalla command line
+Windows
+```
+set BAZEL_FIX_DIR="fds" && set BAZEL_PYWIN_REMAP="fsd" && .\bazel-bin\app\app.exe --window
+```
