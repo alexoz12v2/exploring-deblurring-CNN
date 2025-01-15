@@ -1,10 +1,11 @@
 load("@python_versions//3.10:defs.bzl", "py_binary")
-load("@torch_pip_deps//:requirements.bzl", "requirement")
+load("@torch_pip_deps//:requirements.bzl", "requirement", "data_requirement")
 
+# bazel query @bazel_tools//src/conditions:all
 py_binary(
     name = "app",
     main = "app.py",
-    srcs = [ ":app.py", ":window.py" ],
+    srcs = [ ":app.py", ":window.py", ":pywin32_patch.py" ],
     deps = [
         "//lib",
 		requirement("google-api-python-client"),
@@ -25,6 +26,25 @@ py_binary(
 		requirement("dearpygui"),
 		requirement("numpy"),
 		requirement("kaggle"),
-    ],
+		requirement("portalocker"),
+    ] + select({
+		"@bazel_tools//src/conditions:windows": [
+			requirement("pywin32")
+		],
+		"//conditions:default": []
+	}),
+	data = [
+    ] + select({
+		"@bazel_tools//src/conditions:windows": [
+			data_requirement("pywin32")
+		],
+		"//conditions:default": []
+	}),
+	env = select({
+		"@bazel_tools//src/conditions:windows": {
+			"BAZEL_PYWIN_REMAP": "True" # could be anything
+		},
+		"//conditions:default": {}
+	}),
     visibility = [ "//visibility:public" ]
 )

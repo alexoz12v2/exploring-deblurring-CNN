@@ -7,8 +7,11 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/bazel-bin/app/app.exe.runfiles/_main"
+            },
             "cwd": "${workspaceFolder}/bazel-bin/app/app.exe.runfiles/_main",
-            "args": []
+            "args": ["--window"]
         }
     ]
 }

@@ -1,3 +1,5 @@
+import traceback
+from types import TracebackType
 import torch
 from pathlib import Path
 from absl import app, flags, logging
@@ -14,6 +16,7 @@ import os
 import kaggle
 
 import window
+import sys
 
 PROJECT_ID = "first-project-389416"
 CLIENT_ID = "1041884767277-03qbb9uing3bepgj3712827qlt22149d.apps.googleusercontent.com"
@@ -117,7 +120,13 @@ def kaggle_download_and_extract_zip(dataset_name: str, output_path: Path) -> Non
     )
 
 
+def logging_exception_hook(exc_type: type[BaseException] | None, exc_value: BaseException | None, tb: TracebackType | None) -> None:
+    # alternative: logging.exception
+    logging.error("Exeption %s [%s]\n\tTraceback:\n%s", exc_value, exc_type, traceback.format_exception(exc_value, tb))
+
+
 def main(args: list[str]) -> None:
+    sys.excepthook = logging_exception_hook
     if FLAGS.window:
         with window.Window("EDCNN", width=800, height=600) as w:
             w.run_render_loop()
