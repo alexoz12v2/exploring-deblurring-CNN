@@ -1,7 +1,11 @@
+import faulthandler
+import sys
+from absl.app import parse_flags_with_usage
 import dearpygui.dearpygui as dpg
 from pathlib import Path
 from absl import logging
 from absl.logging import converter
+from absl import command_name
 
 # python standaard
 from enum import Enum
@@ -20,10 +24,12 @@ import shutil
 from shutil import copyfileobj
 
 # multiprocessing/multithreading
-import threading
-import multiprocessing
-import concurrent.futures
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+import multiprocessing as mp
+import multiprocessing.managers
+from multiprocessing.context import SpawnContext
+from multiprocessing.managers import SyncManager
+from multiprocessing import Process, Queue, Value, Manager
+from threading import Thread
 
 # must come before portalocker
 import pywin32_patch  # type: ignore # noqa: F401
@@ -32,9 +38,12 @@ import portalocker as pl
 import utils
 from utils import AtomicBool
 import data
+import time
+
 
 class EDataset(str, Enum):
     gopro_blur = "kaggle goprodeblur"
+    blur_dataset = "blur dataset"
 
 
 class EDatasetPath(Enum):
@@ -43,46 +52,9 @@ class EDatasetPath(Enum):
     test_folder = 2
 
 
-_dataset_folder_from_enum: dict[EDataset, dict[EDatasetPath, str]] = {
-    EDataset.gopro_blur: {
-        EDatasetPath.folder: "gopro_deblur",
-        EDatasetPath.training_folder: "blur",
-        EDatasetPath.test_folder: "sharp",
-    }
-}
-
-
-def _dataset_check_existance(datasets_path: Path, dataset: EDataset) -> bool:
-    # check that the 3 specified folders exist
-    main_path = datasets_path / _dataset_folder_from_enum[dataset][EDatasetPath.folder]
-    train_path = (
-        main_path / _dataset_folder_from_enum[dataset][EDatasetPath.training_folder]
-    )
-    test_path = main_path / _dataset_folder_from_enum[dataset][EDatasetPath.test_folder]
-    delete = False
-    # if the main path exists
-    if main_path.exists():
-        # then the two subpaths must also exist
-        if not (train_path.exists() and test_path.exists()):
-            delete = True
-        else:
-            # and each should contain at least 1 file
-            for path in [train_path, test_path]:
-                if not (path.is_dir() and len(list(path.iterdir())) > 0):
-                    delete = True
-                    break
-    else:
-        return False
-
-    if delete:
-        try:
-            shutil.rmtree(main_path)
-        except Exception as e:
-            logging.error("Couldn't delete invalid dataset path %s", main_path)
-            logging.exception(e)
-        return False
-
-    return True
+class EProcessKeys(Enum):
+    handler_tag = 0,
+    handler_lines = 1,
 
 
 class Extent2D(NamedTuple):
@@ -90,6 +62,41 @@ class Extent2D(NamedTuple):
 
     width: int
     height: int
+
+
+# TODO add shutdown requested
+# todo add logging interface linked to a panel
+def _worker_entry_point(queue: Queue, atomic_flag: AtomicBool):
+    def setup_absl_logging_for_process():
+        command_name.make_process_name_useful()
+        parse_flags_with_usage([sys.argv[0]])
+        logging.use_absl_handler()
+        logging.set_verbosity(logging.INFO)
+        if faulthandler:
+            try:
+                faulthandler.enable()
+            except Exception:  # pylint: disable=broad-except
+                pass
+
+    setup_absl_logging_for_process()
+    #sys.stdout = open("Y:\\worker_stdout.log", "a+")
+    #sys.stderr = open("Y:\\worker_stderr.log", "a+")
+    sys.excepthook = lambda exc_value, exc_type, tb: {
+        logging.error(traceback.format_exception(exc_type, exc_value, tb))
+    }
+
+    logging.info("Process Worker started correctly")
+    while not atomic_flag.should_close():
+        while not atomic_flag.load():
+            time.sleep(0.1)
+
+        if not queue.empty():
+            func, args, kwargs = queue.get()
+            #logging.info("Executing function %s", func.__name__)
+            print(f"Executing function {func.__name__}")
+            func(*args, **kwargs)
+
+        atomic_flag.reset()
 
 
 def _viewport_dims() -> Tuple[Extent2D, Extent2D]:
@@ -103,13 +110,21 @@ def _viewport_dims() -> Tuple[Extent2D, Extent2D]:
     )
 
 
+def _listen_for_logs(console_logger: logging.PythonHandler, msg_queue: Queue):
+    while True:
+        byte_str = msg_queue.get() # blocks here
+        fn, lno, func, sinfo = logging.get_absl_logger().findCaller(False, 0)
+        record = logging.get_absl_logger().makeRecord("worker", logging.INFO, fn, lno, str(byte_str), [])
+        console_logger.emit(record)
+
 class DPGConsoleHandler(logging.PythonHandler):
     _color_error = [200, 30, 0]
     _color_warning = [200, 135, 0]
     _color_trace = [128, 128, 128]
     _color_info = [200, 200, 200]
 
-    def __init__(self, console_tag: str, num_lines: int):
+    # TODO init starts a thread which listens on a fifo queue between main process and worker process
+    def __init__(self, console_tag: str, num_lines: int, msg_queue: Queue):
         super().__init__()
         self.console_tag = (
             console_tag  # window tag inside which add_text will be called
@@ -117,11 +132,12 @@ class DPGConsoleHandler(logging.PythonHandler):
         self.num_lines = num_lines
         self.line_tags = []
 
+        self.io_thread = Thread(target=_listen_for_logs, args=(self, msg_queue))
+
+    
+
     def _level_to_color(self, level):
         std_level = converter.standard_to_absl(level)
-        print(
-            f"Standard: {std_level}\nINFO: {logging.INFO}\nWARNING: {logging.WARNING}\nERROR: {logging.ERROR}"
-        )
         if std_level >= logging.DEBUG:
             return DPGConsoleHandler._color_trace
         elif std_level >= logging.INFO:
@@ -162,7 +178,7 @@ class Panel(ABC):
             else lambda sender, app_data, user_data: user_data.remove_window(self.tag)
         )
         with dpg.stage() as stage:
-            self.tag = dpg.add_window(
+            self.tag: str = dpg.add_window(
                 label=label,
                 tag=tag,
                 user_data=window,
@@ -228,7 +244,7 @@ class Window:
     _lock_file_name = ".ecdnn_lock"
 
     # https://dearpygui.readthedocs.io/en/latest/documentation/viewport.html
-    def __init__(self, title: str, *, width: int, height: int):
+    def __init__(self, title: str, *, ctx: SpawnContext, width: int, height: int):
         # TODO get max monitor resolution?
         if (
             not isinstance(title, str)
@@ -244,9 +260,6 @@ class Window:
         )
         self._manual_resize = False
         self._panels: dict[str, Panel] = {}
-        self.downloading = AtomicBool(False)
-        self.io_workers = ThreadPoolExecutor(max_workers=1)
-        self.compute_workers = ProcessPoolExecutor(max_workers=4)
 
         dpg.create_context()
         # TODO  `small_icon` and `large_icon`, `decorated=False`, maybe `disable_close`
@@ -312,13 +325,53 @@ class Window:
                             ),
                             user_data=self,
                         )
+                        dpg.add_button(
+                            label=EDataset.blur_dataset,
+                            tag=EDataset.blur_dataset,
+                            callback=(
+                                lambda sender,
+                                app_data,
+                                user_data: user_data._on_dataset_selection(
+                                    sender, app_data
+                                )
+                            ),
+                            user_data=self,
+                        )
+                        dpg.add_button(
+                            label="test",
+                            tag="test",
+                            callback=(
+                                lambda sender,
+                                app_data,
+                                user_data: user_data._on_dataset_selection(
+                                    sender, app_data
+                                )
+                            ),
+                            user_data=self,
+                        )
                         with dpg.tooltip(EDataset.gopro_blur):  # tag of the parent
                             dpg.add_text(
                                 "Dataset from `https://www.kaggle.com/datasets/rahulbhalley/gopro-deblur`"
                             )
+                        with dpg.tooltip(EDataset.blur_dataset):  # tag of the parent
+                            dpg.add_text(
+                                "Dataset from `https://www.kaggle.com/datasets/kwentar/blur-dataset"
+                            )
+
+        self.manager = SyncManager(ctx=ctx)
+        self.manager.start()
+
         c_window = Console(self, label="Console")
         self.add_window(c_window)
-        self.console_handler = c_window.console_handler # TODO better
+        self.console_handler = c_window.console_handler  # TODO better
+
+        # process related stuff
+        self.downloading = AtomicBool(ctx, False)
+        self.work_queue = ctx.Queue(maxsize=1)
+        self.worker = ctx.Process(
+            target=_worker_entry_point,
+            args=(self.work_queue, self.downloading),
+        )
 
     def add_window(self, panel: Panel) -> None:
         self._panels[panel.tag] = panel
@@ -338,6 +391,7 @@ class Window:
         dpg.show_viewport()
         # select bootstrap window for display
         dpg.set_primary_window(Window._bootstrap_tag, True)
+        self.worker.start()
         return self
 
     def __exit__(
@@ -353,6 +407,12 @@ class Window:
         if exc_type is not None:
             traceback.print_exception(exc_type, value=exc_value, tb=tb)
 
+        self.downloading.request_close()
+        self.worker.join(timeout=0.1)
+        if self.worker.is_alive():
+            self.worker.kill()
+        
+        self.manager.shutdown()
         return (
             False  # false to throw the exception exc_value (if any), true to swallow it
         )
@@ -374,36 +434,49 @@ class Window:
         logging.info("Current Path: %s", dpg.get_value(app_data))
 
     def _on_dataset_selection(self, sender, app_data):
-        if self.downloading.get():
-            logging.error("Already downloading...")
-            return 
+        if self.downloading.load():
+            logging.error("Already occupied...")
+            return
+
         if not self._state.dataset_path_eelected:
             logging.error("Before Choosing a Dataset, select the Download Path")
             return
 
+        logging.info("Chosen dataset %s", str(sender))
         match str(sender):
             case EDataset.gopro_blur.value:
-                logging.info("Dataset selected: %s", EDataset.gopro_blur.value)
-                if not _dataset_check_existance(
-                    self._state.dataset_path, EDataset.gopro_blur
-                ):
-                    self.io_workers.submit(
-                        data.datasets_make_available_gopro_deblur(
-                            self._state.dataset_path, self.console_handler, self.downloading
-                        )
+                self.work_queue.put(
+                    (
+                        data.datasets_make_available_gopro_deblur,
+                        [
+                            self._state.dataset_path,
+                        ],
+                        {},
                     )
-                else:
-                    logging.info("Dataset %s already downloaded before", EDataset.gopro_blur.value)
+                )
+            case EDataset.blur_dataset.value:
+                self.work_queue.put(
+                    (
+                        data.datasets_make_available_blur_dataset,
+                        [
+                            self._state.dataset_path,
+                        ],
+                        {},
+                    )
+                )
+            case "test":
+                self.work_queue.put((data.test_work, ["str"], {"key": "sdfds"}))
             case _:
                 raise ValueError("Unrecognized dataset selected. How?")
+        self.downloading.set()
 
     # Two methods: First therese python webview, the second is OS Specific scripting
     def _ask_directory(self):
-        if self.downloading.get():
-            logging.error("Cannot change directory while downloading a dataset")
-            return 
-
         """If nothing is selected it uses home"""
+        if self.downloading.load():
+            logging.error("Cannot change directory while downloading a dataset")
+            return
+
         path = None
         if platform.system() == "Windows":
             path = (
