@@ -53,8 +53,8 @@ class EDatasetPath(Enum):
 
 
 class EProcessKeys(Enum):
-    handler_tag = 0,
-    handler_lines = 1,
+    handler_tag = (0,)
+    handler_lines = (1,)
 
 
 class Extent2D(NamedTuple):
@@ -64,9 +64,31 @@ class Extent2D(NamedTuple):
     height: int
 
 
+def _level_to_color(level):
+    std_level = converter.standard_to_absl(level)
+    if std_level >= logging.DEBUG:
+        return DPGConsoleHandler._color_trace
+    elif std_level >= logging.INFO:
+        return DPGConsoleHandler._color_info
+    elif std_level >= logging.WARNING:
+        return DPGConsoleHandler._color_warning
+    else:
+        return DPGConsoleHandler._color_error
+
+
 # TODO add shutdown requested
 # todo add logging interface linked to a panel
-def _worker_entry_point(queue: Queue, atomic_flag: AtomicBool):
+def _worker_entry_point(queue: Queue, atomic_flag: AtomicBool, msg_queue: Queue):
+    class QueueHandler(logging.PythonHandler):
+        def __init__(self, msg_queue: Queue):
+            super().__init__()
+            self.msg_queue = msg_queue
+
+        def emit(self, record):
+            msg = self.format(record).encode("utf-8")
+            print(f"Putting message `{msg}` in queue")
+            msg_queue.put(msg)
+
     def setup_absl_logging_for_process():
         command_name.make_process_name_useful()
         parse_flags_with_usage([sys.argv[0]])
@@ -78,9 +100,11 @@ def _worker_entry_point(queue: Queue, atomic_flag: AtomicBool):
             except Exception:  # pylint: disable=broad-except
                 pass
 
+        logging.get_absl_logger().addHandler(QueueHandler(msg_queue))
+
     setup_absl_logging_for_process()
-    #sys.stdout = open("Y:\\worker_stdout.log", "a+")
-    #sys.stderr = open("Y:\\worker_stderr.log", "a+")
+    # sys.stdout = open("Y:\\worker_stdout.log", "a+")
+    # sys.stderr = open("Y:\\worker_stderr.log", "a+")
     sys.excepthook = lambda exc_value, exc_type, tb: {
         logging.error(traceback.format_exception(exc_type, exc_value, tb))
     }
@@ -92,8 +116,8 @@ def _worker_entry_point(queue: Queue, atomic_flag: AtomicBool):
 
         if not queue.empty():
             func, args, kwargs = queue.get()
-            #logging.info("Executing function %s", func.__name__)
-            print(f"Executing function {func.__name__}")
+            logging.info("Executing function %s", func.__name__)
+            # print(f"Executing function {func.__name__}")
             func(*args, **kwargs)
 
         atomic_flag.reset()
@@ -112,10 +136,10 @@ def _viewport_dims() -> Tuple[Extent2D, Extent2D]:
 
 def _listen_for_logs(console_logger: logging.PythonHandler, msg_queue: Queue):
     while True:
-        byte_str = msg_queue.get() # blocks here
-        fn, lno, func, sinfo = logging.get_absl_logger().findCaller(False, 0)
-        record = logging.get_absl_logger().makeRecord("worker", logging.INFO, fn, lno, str(byte_str), [])
-        console_logger.emit(record)
+        byte_str: bytes = msg_queue.get()
+        msg = byte_str.decode("utf-8")
+        console_logger.write(msg)
+
 
 class DPGConsoleHandler(logging.PythonHandler):
     _color_error = [200, 30, 0]
@@ -133,29 +157,18 @@ class DPGConsoleHandler(logging.PythonHandler):
         self.line_tags = []
 
         self.io_thread = Thread(target=_listen_for_logs, args=(self, msg_queue))
-
-    
-
-    def _level_to_color(self, level):
-        std_level = converter.standard_to_absl(level)
-        if std_level >= logging.DEBUG:
-            return DPGConsoleHandler._color_trace
-        elif std_level >= logging.INFO:
-            return DPGConsoleHandler._color_info
-        elif std_level >= logging.WARNING:
-            return DPGConsoleHandler._color_warning
-        else:
-            return DPGConsoleHandler._color_error
+        self.io_thread.start()  # when main thread exists this should die
 
     def emit(self, record):
         log_entry = self.format(record)
-        color = self._level_to_color(record.levelno)
+        color = _level_to_color(record.levelno)
         self.line_tags.append(
             dpg.add_text(log_entry, parent=self.console_tag, color=color)
         )
         if len(self.line_tags) > self.num_lines:
             to_remove = self.line_tags.pop(0)
             dpg.delete_item(to_remove)
+        self._keep_scroll_bottom()
 
     def flush(self):
         pass
@@ -167,6 +180,10 @@ class DPGConsoleHandler(logging.PythonHandler):
         if len(self.line_tags) > self.num_lines:
             to_remove = self.line_tags.pop(0)
             dpg.delete_item(to_remove)
+        self._keep_scroll_bottom()
+
+    def _keep_scroll_bottom(self):
+        dpg.set_y_scroll(self.console_tag, dpg.get_y_scroll_max(self.console_tag))
 
 
 class Panel(ABC):
@@ -202,7 +219,7 @@ class Console(Panel):
     _console_tag = "Console Window:"
     _instance_count = 0
 
-    def __init__(self, window, *, label: str):
+    def __init__(self, window, *, label: str, msg_queue: Queue):
         vp_client, vp_window = _viewport_dims()
         console_position_winrel = int(vp_window.height * 0.7)
         console_height = int(0.3 * vp_client.height)
@@ -222,7 +239,7 @@ class Console(Panel):
             no_move=True,
             no_resize=True,
         )
-        self.console_handler = DPGConsoleHandler(tag, 100)
+        self.console_handler = DPGConsoleHandler(tag, 100, msg_queue)
         logging.get_absl_logger().addHandler(self.console_handler)
 
     def on_resize(self, vp_window, vp_client):
@@ -360,8 +377,9 @@ class Window:
 
         self.manager = SyncManager(ctx=ctx)
         self.manager.start()
+        self.msg_queue = self.manager.Queue(1)
 
-        c_window = Console(self, label="Console")
+        c_window = Console(self, label="Console", msg_queue=self.msg_queue)
         self.add_window(c_window)
         self.console_handler = c_window.console_handler  # TODO better
 
@@ -370,7 +388,7 @@ class Window:
         self.work_queue = ctx.Queue(maxsize=1)
         self.worker = ctx.Process(
             target=_worker_entry_point,
-            args=(self.work_queue, self.downloading),
+            args=(self.work_queue, self.downloading, self.msg_queue),
         )
 
     def add_window(self, panel: Panel) -> None:
@@ -411,7 +429,7 @@ class Window:
         self.worker.join(timeout=0.1)
         if self.worker.is_alive():
             self.worker.kill()
-        
+
         self.manager.shutdown()
         return (
             False  # false to throw the exception exc_value (if any), true to swallow it

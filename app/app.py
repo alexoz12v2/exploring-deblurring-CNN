@@ -1,6 +1,8 @@
 from multiprocessing.context import SpawnContext
 import os
 from pathlib import Path
+from absl import app, flags, logging
+import sys
 
 if __name__ == "__main__" and os.environ.get("BAZEL_FIX_DIR"):
     main_module_path = Path(__file__).parent.parent
@@ -10,14 +12,12 @@ if __name__ == "__main__" and os.environ.get("BAZEL_FIX_DIR"):
 import traceback
 from types import TracebackType
 import torch
-from absl import app, flags, logging
 from lib.layers.convir_layers import build_net, ConvIR
 import kaggle
 
 from multiprocessing import Manager
 import multiprocessing as mp
 import window
-import sys
 
 # command line arguments:
 FLAGS = flags.FLAGS
