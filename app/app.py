@@ -4,6 +4,8 @@ from pathlib import Path
 from absl import app, flags, logging
 import sys
 
+from app.utils import Args, train
+
 if __name__ == "__main__" and os.environ.get("BAZEL_FIX_DIR"):
     main_module_path = Path(__file__).parent.parent
     print(main_module_path)
@@ -84,6 +86,9 @@ def main(args: list[str]) -> None:
         kaggle_download_and_extract_zip(
             "rahulbhalley/gopro-deblur", Path.cwd() / target_folder
         )
+        args = Args(data_dir="Y:/machine-learning-data", model_save_dir="Y:/machine-learning-data")
+        train(model, args)
+
 
 
 if __name__ == "__main__":

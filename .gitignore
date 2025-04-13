@@ -31,3 +31,6 @@ Thumbs.db
 venv/
 env/
 .venv/
+
+# torch run log
+runs/

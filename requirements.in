@@ -25,3 +25,5 @@ google-auth-httplib2
 google-auth-oauthlib
 kaggle
 portalocker[redis]
+pyqt6
+matplotlib
