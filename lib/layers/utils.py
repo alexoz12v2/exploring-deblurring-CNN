@@ -110,8 +110,7 @@ class TrainArgs(NamedTuple):
     save_freq: int = 10
 
 
-def train(model: ConvIR, args: NamedTuple):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def train(model: ConvIR, device: torch.device, args: NamedTuple):
     criterion = torch.nn.L1Loss()
 
     optimizer = torch.optim.Adam(
@@ -148,50 +147,60 @@ def train(model: ConvIR, args: NamedTuple):
     iter_timer = Timer("m")
     best_psnr = -1
 
+    scaler = torch.amp.GradScaler()
     for epoch_idx in range(epoch, args.num_epoch + 1):
         epoch_timer.tic()
         iter_timer.tic()
+        logging.info("Autocast Enabled: %d", torch.amp.autocast_mode.is_autocast_available(device.type))
         for iter_idx, batch_data in enumerate(dataloader):
             input_img, label_img = batch_data
             input_img = input_img.to(device)
             label_img = label_img.to(device)
 
             optimizer.zero_grad()
-            pred_img = model(input_img)
-            label_img2 = F.interpolate(label_img, scale_factor=0.5, mode="bilinear")
-            label_img4 = F.interpolate(label_img, scale_factor=0.25, mode="bilinear")
-            l1 = criterion(pred_img[0], label_img4)
-            l2 = criterion(pred_img[1], label_img2)
-            l3 = criterion(pred_img[2], label_img)
-            loss_content = l1 + l2 + l3
+            with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
+                pred_img = model(input_img)
+                label_img2 = F.interpolate(label_img, scale_factor=0.5, mode="bilinear")
+                label_img4 = F.interpolate(label_img, scale_factor=0.25, mode="bilinear")
+                l1 = criterion(pred_img[0], label_img4)
+                l2 = criterion(pred_img[1], label_img2)
+                l3 = criterion(pred_img[2], label_img)
+                loss_content = l1 + l2 + l3
 
-            label_fft1 = torch.fft.fft2(label_img4, dim=(-2, -1))
-            label_fft1 = torch.stack((label_fft1.real, label_fft1.imag), -1)
+                label_fft1 = torch.fft.fft2(label_img4, dim=(-2, -1))
+                label_fft1 = torch.view_as_real(label_fft1) 
+                # label_fft1 = torch.stack((label_fft1.real, label_fft1.imag), -1)
 
-            pred_fft1 = torch.fft.fft2(pred_img[0], dim=(-2, -1))
-            pred_fft1 = torch.stack((pred_fft1.real, pred_fft1.imag), -1)
+                pred_fft1 = torch.fft.fft2(pred_img[0], dim=(-2, -1))
+                pred_fft1 = torch.view_as_real(pred_fft1)
+                # pred_fft1 = torch.stack((pred_fft1.real, pred_fft1.imag), -1)
 
-            label_fft2 = torch.fft.fft2(label_img2, dim=(-2, -1))
-            label_fft2 = torch.stack((label_fft2.real, label_fft2.imag), -1)
+                label_fft2 = torch.fft.fft2(label_img2, dim=(-2, -1))
+                label_fft2 = torch.view_as_real(label_fft2) 
+                # label_fft2 = torch.stack((label_fft2.real, label_fft2.imag), -1)
 
-            pred_fft2 = torch.fft.fft2(pred_img[1], dim=(-2, -1))
-            pred_fft2 = torch.stack((pred_fft2.real, pred_fft2.imag), -1)
+                pred_fft2 = torch.fft.fft2(pred_img[1], dim=(-2, -1))
+                pred_fft2 = torch.view_as_real(pred_fft2)
+                # pred_fft2 = torch.stack((pred_fft2.real, pred_fft2.imag), -1)
 
-            label_fft3 = torch.fft.fft2(label_img, dim=(-2, -1))
-            label_fft3 = torch.stack((label_fft3.real, label_fft3.imag), -1)
+                label_fft3 = torch.fft.fft2(label_img, dim=(-2, -1))
+                label_fft3 = torch.view_as_real(label_fft3)
+                # label_fft3 = torch.stack((label_fft3.real, label_fft3.imag), -1)
 
-            pred_fft3 = torch.fft.fft2(pred_img[2], dim=(-2, -1))
-            pred_fft3 = torch.stack((pred_fft3.real, pred_fft3.imag), -1)
+                pred_fft3 = torch.fft.fft2(pred_img[2], dim=(-2, -1))
+                pred_fft3 = torch.view_as_real(pred_fft3)
+                # pred_fft3 = torch.stack((pred_fft3.real, pred_fft3.imag), -1)
 
-            f1 = criterion(pred_fft1, label_fft1)
-            f2 = criterion(pred_fft2, label_fft2)
-            f3 = criterion(pred_fft3, label_fft3)
-            loss_fft = f1 + f2 + f3
+                f1 = criterion(pred_fft1, label_fft1)
+                f2 = criterion(pred_fft2, label_fft2)
+                f3 = criterion(pred_fft3, label_fft3)
+                loss_fft = f1 + f2 + f3
 
-            loss = loss_content + 0.1 * loss_fft
+            loss = scaler.scale(loss_content + 0.1 * loss_fft)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.001)
             optimizer.step()
+            # scaler.update()
 
             iter_pixel_adder(loss_content.item())
             iter_fft_adder(loss_fft.item())

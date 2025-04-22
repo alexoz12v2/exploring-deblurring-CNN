@@ -76,7 +76,7 @@ def main(args: list[str]) -> None:
             model = build_net().to(device)
             if logging.level_info():
                 logging.info("Train Args: \n%s\n", pformat(train_args._asdict()))
-                train(model, train_args)
+                train(model, device, train_args)
         case "test":
             pass
         case "eval":
