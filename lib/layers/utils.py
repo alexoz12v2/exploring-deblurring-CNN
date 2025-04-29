@@ -3,6 +3,7 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
+from torchvision.transforms.functional import to_pil_image
 import torch
 import torch.nn.functional as F
 from absl import logging
@@ -98,7 +99,7 @@ def check_lr(optimizer):
 
 # Train -----------------------------------------------------------------------
 class TrainArgs(NamedTuple):
-    data_dir: Path | str 
+    data_dir: Path | str
     model_save_dir: Path | str
     learning_rate: float = 1e-4
     batch_size: int = 32
@@ -151,7 +152,10 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
     for epoch_idx in range(epoch, args.num_epoch + 1):
         epoch_timer.tic()
         iter_timer.tic()
-        logging.info("Autocast Enabled: %d", torch.amp.autocast_mode.is_autocast_available(device.type))
+        logging.info(
+            "Autocast Enabled: %d",
+            torch.amp.autocast_mode.is_autocast_available(device.type),
+        )
         for iter_idx, batch_data in enumerate(dataloader):
             input_img, label_img = batch_data
             input_img = input_img.to(device)
@@ -161,14 +165,16 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
             with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
                 pred_img = model(input_img)
                 label_img2 = F.interpolate(label_img, scale_factor=0.5, mode="bilinear")
-                label_img4 = F.interpolate(label_img, scale_factor=0.25, mode="bilinear")
+                label_img4 = F.interpolate(
+                    label_img, scale_factor=0.25, mode="bilinear"
+                )
                 l1 = criterion(pred_img[0], label_img4)
                 l2 = criterion(pred_img[1], label_img2)
                 l3 = criterion(pred_img[2], label_img)
                 loss_content = l1 + l2 + l3
 
                 label_fft1 = torch.fft.fft2(label_img4, dim=(-2, -1))
-                label_fft1 = torch.view_as_real(label_fft1) 
+                label_fft1 = torch.view_as_real(label_fft1)
                 # label_fft1 = torch.stack((label_fft1.real, label_fft1.imag), -1)
 
                 pred_fft1 = torch.fft.fft2(pred_img[0], dim=(-2, -1))
@@ -176,7 +182,7 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
                 # pred_fft1 = torch.stack((pred_fft1.real, pred_fft1.imag), -1)
 
                 label_fft2 = torch.fft.fft2(label_img2, dim=(-2, -1))
-                label_fft2 = torch.view_as_real(label_fft2) 
+                label_fft2 = torch.view_as_real(label_fft2)
                 # label_fft2 = torch.stack((label_fft2.real, label_fft2.imag), -1)
 
                 pred_fft2 = torch.fft.fft2(pred_img[1], dim=(-2, -1))
@@ -210,16 +216,14 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
 
             if (iter_idx + 1) % args.print_freq == 0:
                 logging.info(
-                    "Time: %7.4f Epoch: %03d Iter: %4d/%4d LR: %.10f Loss content: %7.4f Loss fft: %7.4f"
-                    % (
-                        iter_timer.toc(),
-                        epoch_idx,
-                        iter_idx + 1,
-                        max_iter,
-                        scheduler.get_lr()[0],
-                        iter_pixel_adder.average(),
-                        iter_fft_adder.average(),
-                    )
+                    "Time: %7.4f Epoch: %03d Iter: %4d/%4d LR: %.10f Loss content: %7.4f Loss fft: %7.4f",
+                    iter_timer.toc(),
+                    epoch_idx,
+                    iter_idx + 1,
+                    max_iter,
+                    scheduler.get_lr()[0],
+                    iter_pixel_adder.average(),
+                    iter_fft_adder.average(),
                 )
                 writer.add_scalar(
                     "Pixel Loss",
@@ -234,27 +238,19 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
                 iter_timer.tic()
                 iter_pixel_adder.reset()
                 iter_fft_adder.reset()
-        overwrite_name = os.path.join(args.model_save_dir, "model.pkl")
-        torch.save(
-            {
-                "model": model.state_dict(),
-                "optimizer": optimizer.state_dict(),
-                "epoch": epoch_idx,
-            },
-            overwrite_name,
-        )
 
+        # back to epoch loop
         if epoch_idx % args.save_freq == 0:
-            save_name = os.path.join(args.model_save_dir, "model_%d.pkl" % epoch_idx)
+            logging.debug("Saving model... (save frequency)")
+            save_name = args.model_save_dir / f"model_{epoch_idx}.pkl"
             torch.save({"model": model.state_dict()}, save_name)
+
         logging.info(
-            "EPOCH: %02d\nElapsed time: %4.2f Epoch Pixel Loss: %7.4f Epoch FFT Loss: %7.4f"
-            % (
-                epoch_idx,
-                epoch_timer.toc(),
-                epoch_pixel_adder.average(),
-                epoch_fft_adder.average(),
-            )
+            "EPOCH: %02d\nElapsed time: %4.2f Epoch Pixel Loss: %7.4f Epoch FFT Loss: %7.4f",
+            epoch_idx,
+            epoch_timer.toc(),
+            epoch_pixel_adder.average(),
+            epoch_fft_adder.average(),
         )
         epoch_fft_adder.reset()
         epoch_pixel_adder.reset()
@@ -267,26 +263,34 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
             )
             writer.add_scalar("PSNR_GOPRO", val_gopro, epoch_idx)
             if val_gopro >= best_psnr:
+                logging.debug("Saving model... (best validation so far)")
                 torch.save(
                     {"model": model.state_dict()},
-                    os.path.join(args.model_save_dir, "Best.pkl"),
+                    args.model_save_dir / "Best.pkl",
                 )
 
-    save_name = os.path.join(args.model_save_dir, "Final.pkl")
+    logging.debug("Saving model... (end of training)")
+    save_name = args.model_save_dir / "Final.pkl"
     torch.save({"model": model.state_dict()}, save_name)
 
 
 # Eval ------------------------------------------------------------------------
-def eval(model, args):
+class EvalArgs(NamedTuple):
+    test_model: Path
+    data_dir: Path
+    save_image: bool
+    result_dir: Path
+
+
+def test(model: ConvIR, device: torch.device, args: EvalArgs):
     factor = 32
-    state_dict = torch.load(args.test_model)
+    state_dict = torch.load(args.test_model, weights_only=True)
     model.load_state_dict(state_dict["model"])
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dataloader = test_dataloader(args.data_dir, batch_size=1, num_workers=0)
     adder = Adder()
     model.eval()
 
-    with torch.no_grad():
+    with torch.inference_mode():
         psnr_adder = Adder()
         for iter_idx, data in enumerate(dataloader):
             input_img, label_img, name = data
@@ -309,15 +313,15 @@ def eval(model, args):
             label_numpy = label_img.squeeze(0).cpu().numpy()
 
             if args.save_image:
-                save_name = os.path.join(args.result_dir, name[0])
+                save_name = args.result_dir / name[0]
                 pred_clip += 0.5 / 255
-                pred = F.to_pil_image(pred_clip.squeeze(0).cpu(), "RGB")
+                pred = to_pil_image(pred_clip.squeeze(0).cpu(), "RGB")
                 pred.save(save_name)
 
             psnr = peak_signal_noise_ratio(pred_numpy, label_numpy, data_range=1)
             psnr_adder(psnr)
-            logging.info("%d iter PSNR: %.4f time: %f" % (iter_idx + 1, psnr, elapsed))
+            logging.info("%d iter PSNR: %.4f time: %f", iter_idx + 1, psnr, elapsed)
 
         logging.info("==========================================================")
-        logging.info("The average PSNR is %.4f dB" % (psnr_adder.average()))
-        logging.info("Average time: %f" % adder.average())
+        logging.info("The average PSNR is %.4f dB", psnr_adder.average())
+        logging.info("Average time: %f", adder.average())

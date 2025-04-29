@@ -53,7 +53,7 @@ def valid_dataloader(path, batch_size=1, num_workers=0):
 class DeblurDataset(Dataset):
     def __init__(self, image_dir: Path, transform=None, is_test=False, is_valid=False):
         self.image_dir = image_dir
-        self.image_list = []
+        self.image_list: list[Path] = []
         if is_test:
             self.image_list.extend(
                 chain(
@@ -87,7 +87,7 @@ class DeblurDataset(Dataset):
         return len(self.image_list)
 
     def __getitem__(self, idx):
-        blur_path = self.image_list[idx]
+        blur_path: Path = self.image_list[idx]
         image = Image.open(blur_path)
         label = Image.open(self._blur_to_sharp_path(blur_path))
 
@@ -98,7 +98,7 @@ class DeblurDataset(Dataset):
             label = F.to_tensor(label)
 
         if self.is_test:
-            return image, label, blur_path  # include name if needed
+            return image, label, blur_path.name  # include name if needed
         return image, label
 
     @staticmethod
