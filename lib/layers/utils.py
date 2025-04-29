@@ -16,18 +16,32 @@ from lib.layers.gradual_warmup import GradualWarmupScheduler
 
 
 # Valid -----------------------------------------------------------------------
-def valid(model, args, ep):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+class TrainArgs(NamedTuple):
+    data_dir: Path | str
+    model_save_dir: Path | str
+    result_dir: Path
+    learning_rate: float = 1e-4
+    batch_size: int = 32
+    num_worker: int = 0
+    num_epoch: int = 50
+    resume: bool = False
+    print_freq: int = 10
+    valid_freq: int = 10
+    save_freq: int = 10
+    accumulate_grad_freq: int = 1
+
+
+def valid(model: ConvIR, device: torch.device, args: TrainArgs, ep: int):
     gopro = valid_dataloader(args.data_dir, batch_size=1, num_workers=0)
     model.eval()
     psnr_adder = Adder()
 
-    with torch.no_grad():
+    with torch.inference_mode():
         logging.info("Start GoPro Evaluation")
         factor = 32
         for idx, data in enumerate(gopro):
             input_img, label_img = data
-            input_img = input_img.to(device)
+            input_img = input_img.to(device=device, non_blocking=True)
 
             h, w = input_img.shape[2], input_img.shape[3]
             H, W = ((h + factor) // factor) * factor, ((w + factor) // factor * factor)
@@ -35,8 +49,9 @@ def valid(model, args, ep):
             padw = W - w if w % factor != 0 else 0
             input_img = F.pad(input_img, (0, padw, 0, padh), "reflect")
 
-            if not os.path.exists(os.path.join(args.result_dir, "%d" % (ep))):
-                os.mkdir(os.path.join(args.result_dir, "%d" % (ep)))
+            dir_ep = args.result_dir / f'{ep}'
+            if not dir_ep.exists():
+                dir_ep.mkdir(parents=True)
 
             pred = model(input_img)[2]
             pred = pred[:, :, :h, :w]
@@ -98,20 +113,8 @@ def check_lr(optimizer):
 
 
 # Train -----------------------------------------------------------------------
-class TrainArgs(NamedTuple):
-    data_dir: Path | str
-    model_save_dir: Path | str
-    learning_rate: float = 1e-4
-    batch_size: int = 32
-    num_worker: int = 0
-    num_epoch: int = 50
-    resume: bool = False
-    print_freq: int = 10
-    valid_freq: int = 10
-    save_freq: int = 10
-
-
 def train(model: ConvIR, device: torch.device, args: NamedTuple):
+    model.train()
     criterion = torch.nn.L1Loss()
 
     optimizer = torch.optim.Adam(
@@ -148,65 +151,127 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
     iter_timer = Timer("m")
     best_psnr = -1
 
-    scaler = torch.amp.GradScaler()
+    logging.info(
+        "Autocast Enabled: %d",
+        torch.amp.autocast_mode.is_autocast_available(device.type),
+    )
+    scaler = torch.amp.GradScaler(device=device.type)
     for epoch_idx in range(epoch, args.num_epoch + 1):
         epoch_timer.tic()
         iter_timer.tic()
-        logging.info(
-            "Autocast Enabled: %d",
-            torch.amp.autocast_mode.is_autocast_available(device.type),
-        )
         for iter_idx, batch_data in enumerate(dataloader):
+            logging.info("0")
             input_img, label_img = batch_data
-            input_img = input_img.to(device)
-            label_img = label_img.to(device)
+            input_img = input_img.to(device=device, non_blocking=True)
+            label_img = label_img.to(device=device, non_blocking=True)
+            logging.info("1")
 
-            optimizer.zero_grad()
             with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
                 pred_img = model(input_img)
                 label_img2 = F.interpolate(label_img, scale_factor=0.5, mode="bilinear")
                 label_img4 = F.interpolate(
                     label_img, scale_factor=0.25, mode="bilinear"
                 )
-                l1 = criterion(pred_img[0], label_img4)
-                l2 = criterion(pred_img[1], label_img2)
-                l3 = criterion(pred_img[2], label_img)
+
+                if device.type == "cuda":
+                    stream1 = torch.cuda.Stream(device=device)
+                    stream2 = torch.cuda.Stream(device=device)
+                    stream3 = torch.cuda.Stream(device=device)
+
+                    torch.cuda.synchronize()
+
+                    with torch.cuda.stream(stream1):
+                        label_fft1 = torch.fft.fft2(label_img4, dim=(-2, -1))
+                        pred_fft1 = torch.fft.fft2(pred_img[0], dim=(-2, -1))
+                        label_fft1 = torch.view_as_real(label_fft1)
+                        pred_fft1 = torch.view_as_real(pred_fft1)
+
+                        f1 = criterion(pred_fft1, label_fft1)
+
+                        l1 = criterion(pred_img[0], label_img4)
+
+                    with torch.cuda.stream(stream2):
+                        label_fft2 = torch.fft.fft2(label_img2, dim=(-2, -1))
+                        pred_fft2 = torch.fft.fft2(pred_img[1], dim=(-2, -1))
+                        label_fft2 = torch.view_as_real(label_fft2)
+                        pred_fft2 = torch.view_as_real(pred_fft2)
+
+                        f2 = criterion(pred_fft2, label_fft2)
+
+                        l2 = criterion(pred_img[1], label_img2)
+
+                    with torch.cuda.stream(stream3):
+                        label_fft3 = torch.fft.fft2(label_img, dim=(-2, -1))
+                        pred_fft3 = torch.fft.fft2(pred_img[2], dim=(-2, -1))
+                        label_fft3 = torch.view_as_real(label_fft3)
+                        pred_fft3 = torch.view_as_real(pred_fft3)
+
+                        f3 = criterion(pred_fft3, label_fft3)
+
+                        l3 = criterion(pred_img[2], label_img)
+
+                    # Make sure all streams are done before proceeding
+                    torch.cuda.synchronize()
+                else:
+                    # Fallback for CPU or non-CUDA device
+                    label_fft1 = torch.view_as_real(
+                        torch.fft.fft2(label_img4, dim=(-2, -1))
+                    )
+                    pred_fft1 = torch.view_as_real(
+                        torch.fft.fft2(pred_img[0], dim=(-2, -1))
+                    )
+
+                    label_fft2 = torch.view_as_real(
+                        torch.fft.fft2(label_img2, dim=(-2, -1))
+                    )
+                    pred_fft2 = torch.view_as_real(
+                        torch.fft.fft2(pred_img[1], dim=(-2, -1))
+                    )
+
+                    label_fft3 = torch.view_as_real(
+                        torch.fft.fft2(label_img, dim=(-2, -1))
+                    )
+                    pred_fft3 = torch.view_as_real(
+                        torch.fft.fft2(pred_img[2], dim=(-2, -1))
+                    )
+
+                    l1 = criterion(pred_img[0], label_img4)
+                    l2 = criterion(pred_img[1], label_img2)
+                    l3 = criterion(pred_img[2], label_img)
+
+                    f1 = criterion(pred_fft1, label_fft1)
+                    f2 = criterion(pred_fft2, label_fft2)
+                    f3 = criterion(pred_fft3, label_fft3)
+
                 loss_content = l1 + l2 + l3
-
-                label_fft1 = torch.fft.fft2(label_img4, dim=(-2, -1))
-                label_fft1 = torch.view_as_real(label_fft1)
-                # label_fft1 = torch.stack((label_fft1.real, label_fft1.imag), -1)
-
-                pred_fft1 = torch.fft.fft2(pred_img[0], dim=(-2, -1))
-                pred_fft1 = torch.view_as_real(pred_fft1)
-                # pred_fft1 = torch.stack((pred_fft1.real, pred_fft1.imag), -1)
-
-                label_fft2 = torch.fft.fft2(label_img2, dim=(-2, -1))
-                label_fft2 = torch.view_as_real(label_fft2)
-                # label_fft2 = torch.stack((label_fft2.real, label_fft2.imag), -1)
-
-                pred_fft2 = torch.fft.fft2(pred_img[1], dim=(-2, -1))
-                pred_fft2 = torch.view_as_real(pred_fft2)
-                # pred_fft2 = torch.stack((pred_fft2.real, pred_fft2.imag), -1)
-
-                label_fft3 = torch.fft.fft2(label_img, dim=(-2, -1))
-                label_fft3 = torch.view_as_real(label_fft3)
-                # label_fft3 = torch.stack((label_fft3.real, label_fft3.imag), -1)
-
-                pred_fft3 = torch.fft.fft2(pred_img[2], dim=(-2, -1))
-                pred_fft3 = torch.view_as_real(pred_fft3)
-                # pred_fft3 = torch.stack((pred_fft3.real, pred_fft3.imag), -1)
-
-                f1 = criterion(pred_fft1, label_fft1)
-                f2 = criterion(pred_fft2, label_fft2)
-                f3 = criterion(pred_fft3, label_fft3)
                 loss_fft = f1 + f2 + f3
 
-            loss = scaler.scale(loss_content + 0.1 * loss_fft)
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 0.001)
-            optimizer.step()
-            # scaler.update()
+                loss = loss_content + 0.1 * loss_fft
+                logging.info("1 after loss")
+
+            # Autograd mixed precision gradient penalty
+            # logging.info("2")
+            # scaled_grad_params = torch.autograd.grad(outputs=scaler.scale(loss), inputs=model.parameters(), retain_graph=True)
+            # logging.info("2 after grad")
+            # inv_scale = 1./scaler.get_scale()
+            # grad_params = [p * inv_scale for p in scaled_grad_params]
+
+            # with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
+            #     grad_norm = 0
+            #     for grad in grad_params:
+            #         grad_norm += grad.pow(2).sum() # L2 gradient penalty
+            #     grad_norm = grad_norm.sqrt()
+            #     loss = loss + grad_norm
+            # logging.info("3")
+
+            scaler.scale(loss).backward()
+
+            if (iter_idx + 1) % args.accumulate_grad_freq == 0:
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 0.001)
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad()
 
             iter_pixel_adder(loss_content.item())
             iter_fft_adder(loss_fft.item())
@@ -241,9 +306,16 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
 
         # back to epoch loop
         if epoch_idx % args.save_freq == 0:
-            logging.debug("Saving model... (save frequency)")
+            logging.info("Saving model... (save frequency)")
             save_name = args.model_save_dir / f"model_{epoch_idx}.pkl"
-            torch.save({"model": model.state_dict()}, save_name)
+            torch.save(
+                {
+                    "model": model.state_dict(),
+                    "epoch": epoch_idx,
+                    "optimizer": optimizer.state_dict(),
+                },
+                save_name,
+            )
 
         logging.info(
             "EPOCH: %02d\nElapsed time: %4.2f Epoch Pixel Loss: %7.4f Epoch FFT Loss: %7.4f",
@@ -257,19 +329,19 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
         scheduler.step()
 
         if epoch_idx % args.valid_freq == 0:
-            val_gopro = valid(model, args, epoch_idx)
+            val_gopro = valid(model, device, args, epoch_idx)
             logging.info(
                 "%03d epoch \n Average GOPRO PSNR %.2f dB" % (epoch_idx, val_gopro)
             )
             writer.add_scalar("PSNR_GOPRO", val_gopro, epoch_idx)
             if val_gopro >= best_psnr:
-                logging.debug("Saving model... (best validation so far)")
+                logging.info("Saving model... (best validation so far)")
                 torch.save(
                     {"model": model.state_dict()},
                     args.model_save_dir / "Best.pkl",
                 )
 
-    logging.debug("Saving model... (end of training)")
+    logging.info("Saving model... (end of training)")
     save_name = args.model_save_dir / "Final.pkl"
     torch.save({"model": model.state_dict()}, save_name)
 

@@ -73,18 +73,6 @@ import logging
 from typing import NamedTuple, Tuple
 
 
-def _move_to(layer: nn.Module, dev: torch.device):
-    layer.to(dev)
-    # layer.device = dev module dovrebbe crearla da solo
-    match dev.type:
-        case "cuda":
-            logging.info(f"[{str(layer)}] Created BasicConv layer on the GPU")
-        case x if x != "cpu":
-            logging.warning(
-                f"[{str(layer)}] Created BasicConv layer on unrecognized device"
-            )
-
-
 class BasicConv(nn.Module):
     """BasicConv: Classe implementante un layer convolutivo (sia in downsampling che in transpose) sandwitched da operazioni comuni, ovvero
     - Batch Normalization
@@ -180,7 +168,6 @@ class BasicConv(nn.Module):
         if conf.relu:
             layers.append(nn.GELU())
         self.main = nn.Sequential(*layers)
-        _move_to(self, conf.device)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """forward: implementa il forward pass per Basic Conv, prende un minibatch x e ne calcola l'uscita y
@@ -316,7 +303,6 @@ class DilatedAttention(nn.Module):
         self.inside_all = nn.Parameter(
             torch.zeros(conf.inchannels, 1, 1), requires_grad=True
         )
-        _move_to(self, conf.device)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """DilatedAttention.forward: implementa il forward pass per DilatedAttention, prende un minibatch x e ne calcola l'uscita
@@ -329,15 +315,9 @@ class DilatedAttention(nn.Module):
         identity_input = x
 
         # 1: Low pass frequency filter extraction
-        low_filter = self.ap.forward(
-            x
-        )  # (c = 3) prendi il colore medio per ogni x_i in minibatch
-        low_filter = self.conv.forward(
-            low_filter
-        )  # convoluzione 1x1 per avere 'group x kernel_size^2' canali
-        low_filter = self.bn.forward(
-            low_filter
-        )  # dopo ogni convoluzione BatchNorm ci sta (DRA originale non la fa)
+        low_filter = self.ap(x)  # (c = 3) prendi il colore medio per ogni x_i in minibatch
+        low_filter = self.conv(low_filter)  # convoluzione 1x1 per avere 'group x kernel_size^2' canali
+        low_filter = self.bn(low_filter)  # dopo ogni convoluzione BatchNorm ci sta (DRA originale non la fa)
         # low filter adesso contiene la media spaziale del volume, bottlenecked al numero di canali che mi serve
         # n x (group x kernel_size^2) x 1 x 1
 
@@ -377,9 +357,7 @@ class DilatedAttention(nn.Module):
             low_filter_h * low_filter_w,
         ).unsqueeze(2)  # ... n, group, 1, kernel_size^2, 1
         # hai ottenuto una struttura analoga all'input (n, group, channels/group, kernel_size^2, height x width)
-        low_filter = self.act.forward(
-            low_filter
-        )  # passa filtro su nonlinearita tanh, caratterizzata da smoothness, bounds, simmetria -> regolarizzazione e controllo
+        low_filter = self.act(low_filter)  # passa filtro su nonlinearita tanh, caratterizzata da smoothness, bounds, simmetria -> regolarizzazione e controllo
 
         # 4: Applicazione filtro passa basso (10 img 224 x 224, 3 canali in 3 gruppi)
         # x = torch.randn(10, 3, 1, 9, 224 * 224)
@@ -412,7 +390,7 @@ class DilatedAttention(nn.Module):
         # rappresenti la componente a bassa frequenza dell'immagine, come se fosse stata applicata la trasformata di Fourier
         out_low = low_part * (
             self.inside_all + 1.0
-        ) - self.inside_all * self.gap.forward(identity_input)
+        ) - self.inside_all * self.gap(identity_input)
 
         # 6: Scala delle basse frequenze con un parametro imparabile. Dato che il lamb_l e' un tensore con size (C),
         #    aggiungiamo delle singleton dimensions mettendo dei None nello schema di indexing, e trasferiamo le C
@@ -495,7 +473,6 @@ class DRAWidthHeight(nn.Module):
         )
         self.gamma = nn.Parameter(torch.zeros(conf.dim, 1, 1))
         self.beta = nn.Parameter(torch.ones(conf.dim, 1, 1))
-        _move_to(self, conf.device)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """DRAWidthHeight.forward: implementa il forward pass per DRA
@@ -505,8 +482,8 @@ class DRAWidthHeight(nn.Module):
             (torch.Tensor) output del layer dato il minibatch, somma pesata tra output sequenza DRAs e residuo (input)
         """
 
-        out = self.H_spatial_att.forward(x)
-        out = self.W_spatial_att.forward(out)
+        out = self.H_spatial_att(x)
+        out = self.W_spatial_att(out)
         return self.gamma * out + x * self.beta
 
 
@@ -568,7 +545,6 @@ class MultiShapeAttention(nn.Module):
                 kernel=conf.kernel_size,
             )
         )
-        _move_to(self, conf.device)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """MultiShapeAttention.forward: implementa il forward pass per MSA
@@ -644,11 +620,11 @@ class MultiScaleModule(nn.Module):
         y_up = None
         for i in range(len(self.pools_sizes)):
             if i == 0:
-                y = self.dynas[i].forward(
+                y = self.dynas[i](
                     self.convs[i](self.pools[i](x))
                 )  # quindi il conv3x3 e' fatto fuori dal DSA
             else:
-                y = self.dynas[i].forward(self.convs[i](self.pools[i](x) + y_up))
+                y = self.dynas[i](self.convs[i](self.pools[i](x) + y_up))
             resl = torch.add(
                 resl,
                 nnfunc.interpolate(y, x_size[2:], mode="bilinear", align_corners=True),
@@ -657,8 +633,8 @@ class MultiScaleModule(nn.Module):
                 y_up = nnfunc.interpolate(
                     y, scale_factor=2, mode="bilinear", align_corners=True
                 )
-        resl = self.relu.forward(resl)  # perche' relu solo all'ultimo?
-        resl = self.conv_sum.forward(resl)
+        resl = self.relu(resl)  # perche' relu solo all'ultimo?
+        resl = self.conv_sum(resl)
 
         return resl
 

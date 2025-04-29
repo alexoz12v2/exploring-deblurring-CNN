@@ -38,6 +38,8 @@ def main(args: list[str]) -> None:
     train_parser.add_argument('-rp', '--resume', type=Path, default=None, metavar="<dir>", help="(optional) path to a model checkpoint to resume training from")
     train_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to training data directory")
     train_parser.add_argument('-msd', '--model_save_dir', type=Path, default=Path.home() / ".convir", metavar="<dir>", help="path to directory where model checkpoint will be saved (default: ~/.convir)")
+    train_parser.add_argument('-agf', '--accumulate-grad-freq', type=int, default=1, metavar='<n>', help="frequency (in batch indexes) after which the cumulated gradient is transferred to the model")
+    train_parser.add_argument('-rd', '--result-dir', type=Path, required=True, metavar='<dir>', help='Directory in which deblurred validation images will be stored')
 
     # subcommand: test
     test_parser = subparsers.add_parser("test", help="Test a ConvIR net instance")
