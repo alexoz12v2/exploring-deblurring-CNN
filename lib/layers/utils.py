@@ -33,6 +33,7 @@ class TrainArgs(NamedTuple):
 
 def valid(model: ConvIR, device: torch.device, args: TrainArgs, ep: int):
     gopro = valid_dataloader(args.data_dir, batch_size=1, num_workers=0)
+    max_iter = len(gopro)
     model.eval()
     psnr_adder = Adder()
 
@@ -63,7 +64,7 @@ def valid(model: ConvIR, device: torch.device, args: TrainArgs, ep: int):
             psnr = peak_signal_noise_ratio(p_numpy, label_numpy, data_range=1)
 
             psnr_adder(psnr)
-            logging.info("\r%03d", idx)
+            logging.info("[Validation] Idx: %03d/%03d PSNR: %f", idx, max_iter, psnr)
 
     logging.info("\n")
     model.train()
