@@ -63,7 +63,7 @@ def valid(model: ConvIR, device: torch.device, args: TrainArgs, ep: int):
             psnr = peak_signal_noise_ratio(p_numpy, label_numpy, data_range=1)
 
             psnr_adder(psnr)
-            logging.info("\r%03d" % idx, end=" ")
+            logging.info("\r%03d", idx)
 
     logging.info("\n")
     model.train()
@@ -160,13 +160,10 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
         epoch_timer.tic()
         iter_timer.tic()
         for iter_idx, batch_data in enumerate(dataloader):
-            logging.info("0")
-            input_img, label_img = batch_data
-            input_img = input_img.to(device=device, non_blocking=True)
-            label_img = label_img.to(device=device, non_blocking=True)
-            logging.info("1")
-
             with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
+                input_img, label_img = batch_data
+                input_img = input_img.to(device=device, non_blocking=True)
+                label_img = label_img.to(device=device, non_blocking=True)
                 pred_img = model(input_img)
                 label_img2 = F.interpolate(label_img, scale_factor=0.5, mode="bilinear")
                 label_img4 = F.interpolate(
@@ -247,7 +244,6 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
                 loss_fft = f1 + f2 + f3
 
                 loss = loss_content + 0.1 * loss_fft
-                logging.info("1 after loss")
 
             # Autograd mixed precision gradient penalty
             # logging.info("2")
