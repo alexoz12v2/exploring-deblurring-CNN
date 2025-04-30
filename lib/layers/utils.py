@@ -378,7 +378,6 @@ def test(model: ConvIR, device: torch.device, args: EvalArgs):
             tm = time.time()
 
             pred = model(input_img)[2]
-            pred = pred[:, :, :h, :w]
             elapsed = time.time() - tm
             adder(elapsed)
 
