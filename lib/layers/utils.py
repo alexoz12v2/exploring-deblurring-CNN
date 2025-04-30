@@ -387,8 +387,6 @@ def test(model: ConvIR, device: torch.device, args: EvalArgs):
             adder(elapsed)
 
             pred_clip = torch.clamp(pred, 0, 1)
-            pred_numpy = pred_clip.squeeze(0).cpu().numpy()
-            label_numpy = label_img.squeeze(0).cpu().numpy()
 
             if args.save_image:
                 save_name = args.result_dir / name[0]
@@ -396,7 +394,7 @@ def test(model: ConvIR, device: torch.device, args: EvalArgs):
                 pred = to_pil_image(pred_clip.squeeze(0).cpu(), "RGB")
                 pred.save(save_name)
 
-            psnr = peak_signal_noise_ratio(pred_numpy, label_numpy, data_range=1)
+            psnr = peak_signal_noise_ratio(pred_clip.squeeze(0), label_img.squeeze(0)).cpu().numpy()
             psnr_adder(psnr)
             logging.info("%d iter PSNR: %.4f time: %f", iter_idx + 1, psnr, elapsed)
 
