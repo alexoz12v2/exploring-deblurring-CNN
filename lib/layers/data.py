@@ -2,21 +2,34 @@ import random
 from itertools import chain
 from pathlib import Path
 
-import torchvision.transforms as transforms
-from PIL import Image as Image
+import torch
+
 from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import functional as F
 
+import torchvision.transforms.v2 as v2
+import torchvision.transforms.v2.functional
+from torchvision.io import decode_image, write_png, ImageReadMode
 
-class PairCenterCrop():
-    def __init__(self, size):
-        self.crop = transforms.CenterCrop(size)
 
-    def __call__(self, image, label):
-        image = self.crop(image)
-        label = self.crop(label)
+class NormalizeRange(v2.Transform):
+    def _transform(self, inpt: torch.Tensor, params):
+        if not isinstance(inpt, torch.Tensor):
+            raise TypeError("Input must be a torch.Tensor")
+        if not torch.is_floating_point(inpt):
+            inpt = inpt.float()
 
-        return image, label
+        return inpt / 255.0
+
+
+def save_image(image_tensor: torch.Tensor, path: Path):
+    # must be C x H x W
+    if torch.is_floating_point(image_tensor):
+        image_tensor = v2.functional.to_dtype(image_tensor * 255.0, torch.uint8)
+    if image_tensor.device.type != 'cpu':
+        image_tensor = image_tensor.cpu()
+
+    write_png(image_tensor, str(path))
 
 
 def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=True):
@@ -24,8 +37,18 @@ def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=Tru
 
     transform = None
     if use_transform:
-        transform = PairCompose(
-            [PairRandomCrop(256), PairRandomHorizontalFilp(), PairToTensor()]
+        transform = v2.Compose(
+            [
+                # Autoaugment paper: https://arxiv.org/pdf/1805.09501
+                v2.AutoAugment(),
+                v2.ToDtype(torch.get_default_dtype()),
+                NormalizeRange(),
+                v2.ScaleJitter(target_size=(256, 256), scale_range=(0.8, 1.2)),
+                v2.RandomResizedCrop(256),
+                # v2.ColorJitter(), # a quanto pare modificare il colore distrugge tutto?
+                # v2.RandomInvert(),
+                v2.RandomHorizontalFlip(p=0.5),
+            ]
         )
     dataloader = DataLoader(
         DeblurDataset(image_dir, transform=transform),
@@ -38,9 +61,7 @@ def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=Tru
 
 
 def test_dataloader(path: Path, batch_size=1, num_workers=0):
-    transform = PairCompose(
-        [PairToTensor(), PairCenterCrop(256)]
-    )
+    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange(), v2.CenterCrop(256)])
     image_dir = path / "test"
     dataloader = DataLoader(
         DeblurDataset(image_dir, is_test=True, transform=transform),
@@ -54,9 +75,7 @@ def test_dataloader(path: Path, batch_size=1, num_workers=0):
 
 
 def valid_dataloader(path, batch_size=1, num_workers=0):
-    transform = PairCompose(
-        [PairToTensor(), PairCenterCrop(256)]
-    )
+    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange(), v2.CenterCrop(256)])
     dataloader = DataLoader(
         DeblurDataset(path / "train", is_valid=True, transform=transform),
         batch_size=batch_size,
@@ -105,14 +124,15 @@ class DeblurDataset(Dataset):
 
     def __getitem__(self, idx):
         blur_path: Path = self.image_list[idx]
-        image = Image.open(blur_path)
-        label = Image.open(self._blur_to_sharp_path(blur_path))
+        image = decode_image(blur_path, mode=ImageReadMode.RGB)
+        label = decode_image(self._blur_to_sharp_path(blur_path), mode=ImageReadMode.RGB)
 
         if self.transform:
-            image, label = self.transform(image, label)
+            image = self.transform(image)
+            label = self.transform(label)
         else:
-            image = F.to_tensor(image)
-            label = F.to_tensor(label)
+            image = v2.functional.to_dtype(image, torch.get_default_dtype())
+            label = v2.functional.to_dtype(label, torch.get_default_dtype())
 
         if self.is_test:
             return image, label, blur_path.name  # include name if needed
@@ -135,78 +155,3 @@ class DeblurDataset(Dataset):
             splits = x.name.split(".")
             if splits[-1] not in ["png", "jpg", "jpeg"]:
                 raise ValueError
-
-
-class PairRandomCrop(transforms.RandomCrop):
-    def __call__(self, image, label):
-        if self.padding is not None:
-            image = F.pad(image, self.padding, self.fill, self.padding_mode)
-            label = F.pad(label, self.padding, self.fill, self.padding_mode)
-
-        # pad the width if needed
-        if self.pad_if_needed and image.size[0] < self.size[1]:
-            image = F.pad(
-                image, (self.size[1] - image.size[0], 0), self.fill, self.padding_mode
-            )
-            label = F.pad(
-                label, (self.size[1] - label.size[0], 0), self.fill, self.padding_mode
-            )
-        # pad the height if needed
-        if self.pad_if_needed and image.size[1] < self.size[0]:
-            image = F.pad(
-                image, (0, self.size[0] - image.size[1]), self.fill, self.padding_mode
-            )
-            label = F.pad(
-                label, (0, self.size[0] - image.size[1]), self.fill, self.padding_mode
-            )
-
-        i, j, h, w = self.get_params(image, self.size)
-
-        return F.crop(image, i, j, h, w), F.crop(label, i, j, h, w)
-
-
-class PairCompose(transforms.Compose):
-    def __call__(self, image, label):
-        for t in self.transforms:
-            image, label = t(image, label)
-        return image, label
-
-
-class PairRandomHorizontalFilp(transforms.RandomHorizontalFlip):
-    def __call__(self, img, label):
-        """
-        Args:
-            img (PIL Image): Image to be flipped.
-
-        Returns:
-            PIL Image: Randomly flipped image.
-        """
-        if random.random() < self.p:
-            return F.hflip(img), F.hflip(label)
-        return img, label
-
-
-class PairRandomVerticalFlip(transforms.RandomVerticalFlip):
-    def __call__(self, img, label):
-        """
-        Args:
-            img (PIL Image): Image to be flipped.
-
-        Returns:
-            PIL Image: Randomly flipped image.
-        """
-        if random.random() < self.p:
-            return F.vflip(img), F.vflip(label)
-        return img, label
-
-
-class PairToTensor(transforms.ToTensor):
-    def __call__(self, pic, label):
-        """
-        Args:
-            pic (PIL Image or numpy.ndarray): Image to be converted to tensor.
-
-        Returns:
-            Tensor: Converted image.
-        """
-        return F.to_tensor(pic), F.to_tensor(label)

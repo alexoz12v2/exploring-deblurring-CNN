@@ -11,9 +11,11 @@ from absl import logging
 from torch.utils.tensorboard import SummaryWriter
 
 from lib.layers.convir_layers import ConvIR
-from lib.layers.data import test_dataloader, train_dataloader, valid_dataloader
+from lib.layers.data import save_image, test_dataloader, train_dataloader, valid_dataloader
 from lib.layers.gradual_warmup import GradualWarmupScheduler
-from lib.ssim import StructuralSimilarity
+from ignite.metrics import SSIM
+
+import json
 
 
 # Valid -----------------------------------------------------------------------
@@ -33,49 +35,44 @@ class TrainArgs(NamedTuple):
 
 
 def valid(model: ConvIR, device: torch.device, args: TrainArgs, ep: int):
-    gopro = valid_dataloader(args.data_dir, batch_size=1, num_workers=0)
+    gopro = valid_dataloader(args.data_dir, batch_size=8, num_workers=0)
     max_iter = len(gopro)
     model.eval()
     psnr_adder = Adder()
+    ssim_adder = SSIM(device=device, data_range=1.0)
+
+    dir_ep = args.result_dir / f"validation_metrics_{ep}.json"
 
     with torch.inference_mode():
         with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
             logging.info("Start GoPro Evaluation")
-            # factor = 32
             for idx, data in enumerate(gopro):
                 input_img, label_img = data
                 input_img = input_img.to(device=device, non_blocking=True)
                 label_img = label_img.to(device=device, non_blocking=True)
-                logging.info("%s", input_img.shape)
-
-                h, w = input_img.shape[2], input_img.shape[3]
-                
-                # H, W = ((h + factor) // factor) * factor, ((w + factor) // factor * factor)
-                # padh = H - h if h % factor != 0 else 0
-                # padw = W - w if w % factor != 0 else 0
-                # input_img = F.pad(input_img, (0, padw, 0, padh), "reflect")
-
-                dir_ep = args.result_dir / f'{ep}'
-                if not dir_ep.exists():
-                    dir_ep.mkdir(parents=True)
 
                 pred = model(input_img)[2]
-                pred = pred[:, :, :h, :w]
-
                 pred_clip = torch.clamp(pred, 0, 1)
 
-                psnr = peak_signal_noise_ratio(pred_clip, label_img)
-                # ssim = StructuralSimilarity(device=device)
-                # ssim.update(pred_clip, label_img)
+                psnr_adder(
+                    peak_signal_noise_ratio(pred_clip.squeeze(0), label_img.squeeze(0))
+                )
+                ssim_adder.update((pred_clip, label_img))
 
-                # ssim_value = ssim.compute().cpu().numpy()
+                psnr, ssim = psnr_adder.average(), ssim_adder.compute()
 
-                psnr_adder(psnr.cpu().numpy())
-                # logging.info("[Validation] Idx: %03d/%03d PSNR: %f, SSIM: %f", idx, max_iter, psnr, ssim_value)
-                logging.info("[Validation] Idx: %03d/%03d PSNR: %f", idx, max_iter, psnr)
+                logging.info(
+                    "[Validation] Idx: %03d/%03d mean PSNR so far: %f mean SSIM so far %f",
+                    idx,
+                    max_iter,
+                    psnr,
+                    ssim,
+                )
 
-    logging.info("\n")
-    model.train()
+    psnr_avg, ssim_avg = psnr_adder.average(), ssim_adder.compute()
+    logging.info("[Validation] End: Mean PSNR: %f Mean SSIM %f", psnr_avg, ssim_avg)
+    with open(dir_ep, mode="+w") as f:
+        json.dump({"psnr": psnr_avg.item(), "ssim": ssim_avg}, f)
     return psnr_adder.average()
 
 
@@ -171,7 +168,6 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
         for iter_idx, batch_data in enumerate(dataloader):
             with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
                 input_img, label_img = batch_data
-                logging.info("%s", str(input_img.shape))
                 input_img = input_img.to(device=device, non_blocking=True)
                 label_img = label_img.to(device=device, non_blocking=True)
                 pred_img = model(input_img)
@@ -256,25 +252,23 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
                 loss = loss_content + 0.1 * loss_fft
 
             # Autograd mixed precision gradient penalty
-            # logging.info("2")
-            # scaled_grad_params = torch.autograd.grad(outputs=scaler.scale(loss), inputs=model.parameters(), retain_graph=True)
-            # logging.info("2 after grad")
-            # inv_scale = 1./scaler.get_scale()
-            # grad_params = [p * inv_scale for p in scaled_grad_params]
+            scaled_grad_params = torch.autograd.grad(outputs=scaler.scale(loss), inputs=model.parameters(), retain_graph=True)
+            inv_scale = 1./scaler.get_scale()
+            grad_params = [p * inv_scale for p in scaled_grad_params]
 
-            # with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
-            #     grad_norm = 0
-            #     for grad in grad_params:
-            #         grad_norm += grad.pow(2).sum() # L2 gradient penalty
-            #     grad_norm = grad_norm.sqrt()
-            #     loss = loss + grad_norm
-            # logging.info("3")
+            with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
+                grad_norm = 0
+                for grad in grad_params:
+                    grad_norm += grad.pow(2).sum() # L2 gradient penalty
+                grad_norm = grad_norm.sqrt()
+                loss = loss + grad_norm
 
             scaler.scale(loss).backward()
 
             if (iter_idx + 1) % args.accumulate_grad_freq == 0:
                 scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), 0.001)
+                # O usi gradient penalty o usi gradient clipping
+                # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.001)
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad()
@@ -385,11 +379,9 @@ def test(model: ConvIR, device: torch.device, args: EvalArgs):
 
             if args.save_image:
                 save_name = args.result_dir / name[0]
-                pred_clip += 0.5 / 255
-                pred = to_pil_image(pred_clip.squeeze(0).cpu(), "RGB")
-                pred.save(save_name)
+                save_image(pred_clip.squeeze(0), save_name)
 
-            psnr = peak_signal_noise_ratio(pred_clip.squeeze(0), label_img.squeeze(0)).cpu().numpy()
+            psnr = peak_signal_noise_ratio(pred_clip.squeeze(0), label_img.squeeze(0))
             psnr_adder(psnr)
             logging.info("%d iter PSNR: %.4f time: %f", iter_idx + 1, psnr, elapsed)
 

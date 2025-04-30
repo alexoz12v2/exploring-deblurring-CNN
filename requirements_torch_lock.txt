@@ -718,6 +718,7 @@ packaging==24.2 \
     # via
     #   lazy-loader
     #   matplotlib
+    #   pytorch-ignite
     #   scikit-image
     #   tensorboard
 pillow==11.0.0 \
@@ -895,6 +896,10 @@ python-slugify==8.0.4 \
     --hash=sha256:276540b79961052b66b7d116620b36518847f52d5fd9e3a70164fc8c50faa6b8 \
     --hash=sha256:59202371d1d05b54a9e7720c5e038f928f45daaffe41dd10822f3907b937c856
     # via kaggle
+pytorch-ignite==0.5.2 \
+    --hash=sha256:63bdbafe3fb76bf243e4c7fa4b71c89a652fece6c4c2f6e3c5b448ac74447d98 \
+    --hash=sha256:ae0843e7b45416041cc57700dcbdfae30ae6432f2dc5bc20dfbfe1dae3414c91
+    # via -r requirements.in
 pywin32==308 \
     --hash=sha256:00b3e11ef09ede56c6a43c71f2d31857cf7c54b0ab6e78ac659497abd2834f47 \
     --hash=sha256:100a5442b7332070983c4cd03f2e906a5648a5104b8a7f50175f7906efd16bb6 \
@@ -1023,6 +1028,7 @@ torch @ https://download.pytorch.org/whl/cu121/torch-2.5.1%2Bcu121-cp310-cp310-w
     --hash=sha256:9b22d6d98aa56f9317902dec0e066814a6edba1aada90110ceea2bb0678df22f
     # via
     #   -r requirements.in
+    #   pytorch-ignite
     #   torchvision
 torcheval==0.0.7 \
     --hash=sha256:20cc34dac7aa9b32f942c8a9f014d1d02098631b6cd0b102c078600577017956 \

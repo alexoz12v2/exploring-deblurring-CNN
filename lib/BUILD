@@ -11,7 +11,6 @@ py_library(
         ":layers/gradual_warmup.py",
         ":layers/original/__init__.py",
         ":layers/original/convir_layers.py",
-		":ssim.py",
     ],
     deps = [
 		requirement("pillow"),
