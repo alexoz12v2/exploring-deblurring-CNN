@@ -21,7 +21,7 @@ def main(args: list[str]) -> None:
         dest="command",
         metavar="<command>",
         required=True,
-        help="Use '%(prog)s <command> --help to get help on a specific command'",
+        help="Use %(prog)s <command> --help to get help on a specific command'",
     )
 
     # fmt: off
@@ -61,6 +61,7 @@ def main(args: list[str]) -> None:
         torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
     )
     logging.info("Device: %s", str(device))
+    # torch.set_default_dtype(torch.bfloat16)
 
     # additional validation (call parser.exit if fails), then construct a namedtuple object and call function
     match args.command:

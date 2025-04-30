@@ -1024,6 +1024,10 @@ torch @ https://download.pytorch.org/whl/cu121/torch-2.5.1%2Bcu121-cp310-cp310-w
     # via
     #   -r requirements.in
     #   torchvision
+torcheval==0.0.7 \
+    --hash=sha256:20cc34dac7aa9b32f942c8a9f014d1d02098631b6cd0b102c078600577017956 \
+    --hash=sha256:a498dec34137bc66c9cf1adc7353a46c604dd62255884c72dcb4e2e4fc2cd7e9
+    # via -r requirements.in
 torchvision @ https://download.pytorch.org/whl/cu121/torchvision-0.20.1%2Bcu121-cp310-cp310-win_amd64.whl#sha256=4cb1e44c1f7a4992f6d38a15633a1e694c093f1c52f3a036b1a719968031507a \
     --hash=sha256:4cb1e44c1f7a4992f6d38a15633a1e694c093f1c52f3a036b1a719968031507a
     # via -r requirements.in
@@ -1034,7 +1038,9 @@ tqdm==4.67.1 \
 typing-extensions==4.12.2 \
     --hash=sha256:04e5ca0351e0f3f85c6853954072df659d0d13fac324d0072316b67d7794700d \
     --hash=sha256:1a7ead55c7e559dd4dee8856e3a88b41225abfe1ce8df57b7c13915fe121ffb8
-    # via torch
+    # via
+    #   torch
+    #   torcheval
 uritemplate==4.1.1 \
     --hash=sha256:4346edfc5c3b79f694bccd6d6099a322bbeb628dbf2cd86eea55a456ce5124f0 \
     --hash=sha256:830c08b8d99bdd312ea4ead05994a38e8936266f84b9a7878232db50b044e02e

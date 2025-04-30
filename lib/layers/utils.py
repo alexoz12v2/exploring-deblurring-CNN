@@ -6,13 +6,14 @@ from typing import NamedTuple
 from torchvision.transforms.functional import to_pil_image
 import torch
 import torch.nn.functional as F
+from torcheval.metrics.functional import peak_signal_noise_ratio
 from absl import logging
-from skimage.metrics import peak_signal_noise_ratio
 from torch.utils.tensorboard import SummaryWriter
 
 from lib.layers.convir_layers import ConvIR
 from lib.layers.data import test_dataloader, train_dataloader, valid_dataloader
 from lib.layers.gradual_warmup import GradualWarmupScheduler
+from lib.ssim import StructuralSimilarity
 
 
 # Valid -----------------------------------------------------------------------
@@ -38,33 +39,37 @@ def valid(model: ConvIR, device: torch.device, args: TrainArgs, ep: int):
     psnr_adder = Adder()
 
     with torch.inference_mode():
-        logging.info("Start GoPro Evaluation")
-        factor = 32
-        for idx, data in enumerate(gopro):
-            input_img, label_img = data
-            input_img = input_img.to(device=device, non_blocking=True)
+        with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
+            logging.info("Start GoPro Evaluation")
+            # factor = 32
+            for idx, data in enumerate(gopro):
+                input_img, label_img = data
+                input_img = input_img.to(device=device, non_blocking=True)
+                label_img = label_img.to(device=device, non_blocking=True)
 
-            h, w = input_img.shape[2], input_img.shape[3]
-            H, W = ((h + factor) // factor) * factor, ((w + factor) // factor * factor)
-            padh = H - h if h % factor != 0 else 0
-            padw = W - w if w % factor != 0 else 0
-            input_img = F.pad(input_img, (0, padw, 0, padh), "reflect")
+                h, w = input_img.shape[2], input_img.shape[3]
+                # H, W = ((h + factor) // factor) * factor, ((w + factor) // factor * factor)
+                # padh = H - h if h % factor != 0 else 0
+                # padw = W - w if w % factor != 0 else 0
+                # input_img = F.pad(input_img, (0, padw, 0, padh), "reflect")
 
-            dir_ep = args.result_dir / f'{ep}'
-            if not dir_ep.exists():
-                dir_ep.mkdir(parents=True)
+                dir_ep = args.result_dir / f'{ep}'
+                if not dir_ep.exists():
+                    dir_ep.mkdir(parents=True)
 
-            pred = model(input_img)[2]
-            pred = pred[:, :, :h, :w]
+                pred = model(input_img)[2]
+                pred = pred[:, :, :h, :w]
 
-            pred_clip = torch.clamp(pred, 0, 1)
-            p_numpy = pred_clip.squeeze(0).cpu().numpy()
-            label_numpy = label_img.squeeze(0).cpu().numpy()
+                pred_clip = torch.clamp(pred, 0, 1)
 
-            psnr = peak_signal_noise_ratio(p_numpy, label_numpy, data_range=1)
+                psnr = peak_signal_noise_ratio(pred_clip, label_img)
+                ssim = StructuralSimilarity(device=device)
+                ssim.update(pred_clip, label_img)
 
-            psnr_adder(psnr)
-            logging.info("[Validation] Idx: %03d/%03d PSNR: %f", idx, max_iter, psnr)
+                ssim_value = ssim.compute().cpu().numpy()
+
+                psnr_adder(psnr.cpu().numpy())
+                logging.info("[Validation] Idx: %03d/%03d PSNR: %f, SSIM: %f", idx, max_iter, psnr, ssim_value)
 
     logging.info("\n")
     model.train()
@@ -163,6 +168,7 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
         for iter_idx, batch_data in enumerate(dataloader):
             with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
                 input_img, label_img = batch_data
+                logging.info("%s", str(input_img.shape))
                 input_img = input_img.to(device=device, non_blocking=True)
                 label_img = label_img.to(device=device, non_blocking=True)
                 pred_img = model(input_img)
