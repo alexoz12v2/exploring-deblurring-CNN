@@ -48,6 +48,7 @@ def valid(model: ConvIR, device: torch.device, args: TrainArgs, ep: int):
                 label_img = label_img.to(device=device, non_blocking=True)
 
                 h, w = input_img.shape[2], input_img.shape[3]
+                
                 # H, W = ((h + factor) // factor) * factor, ((w + factor) // factor * factor)
                 # padh = H - h if h % factor != 0 else 0
                 # padw = W - w if w % factor != 0 else 0
