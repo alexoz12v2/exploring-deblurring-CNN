@@ -8,6 +8,17 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import functional as F
 
 
+class PairCenterCrop():
+    def __init__(self, size):
+        self.crop = transforms.CenterCrop(size)
+
+    def __call__(self, image, label):
+        image = self.crop(image)
+        label = self.crop(label)
+
+        return image, label
+
+
 def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=True):
     image_dir = path / "train"
 
@@ -27,9 +38,12 @@ def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=Tru
 
 
 def test_dataloader(path: Path, batch_size=1, num_workers=0):
+    transform = PairCompose(
+        [PairToTensor(), PairCenterCrop(256)]
+    )
     image_dir = path / "test"
     dataloader = DataLoader(
-        DeblurDataset(image_dir, is_test=True),
+        DeblurDataset(image_dir, is_test=True, transform=transform),
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,
@@ -40,8 +54,11 @@ def test_dataloader(path: Path, batch_size=1, num_workers=0):
 
 
 def valid_dataloader(path, batch_size=1, num_workers=0):
+    transform = PairCompose(
+        [PairToTensor(), PairCenterCrop(256)]
+    )
     dataloader = DataLoader(
-        DeblurDataset(path / "train", is_valid=True),
+        DeblurDataset(path / "train", is_valid=True, transform=transform),
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,

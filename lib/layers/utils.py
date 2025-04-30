@@ -46,6 +46,7 @@ def valid(model: ConvIR, device: torch.device, args: TrainArgs, ep: int):
                 input_img, label_img = data
                 input_img = input_img.to(device=device, non_blocking=True)
                 label_img = label_img.to(device=device, non_blocking=True)
+                logging.info("%s", input_img.shape)
 
                 h, w = input_img.shape[2], input_img.shape[3]
                 
@@ -64,13 +65,14 @@ def valid(model: ConvIR, device: torch.device, args: TrainArgs, ep: int):
                 pred_clip = torch.clamp(pred, 0, 1)
 
                 psnr = peak_signal_noise_ratio(pred_clip, label_img)
-                ssim = StructuralSimilarity(device=device)
-                ssim.update(pred_clip, label_img)
+                # ssim = StructuralSimilarity(device=device)
+                # ssim.update(pred_clip, label_img)
 
-                ssim_value = ssim.compute().cpu().numpy()
+                # ssim_value = ssim.compute().cpu().numpy()
 
                 psnr_adder(psnr.cpu().numpy())
-                logging.info("[Validation] Idx: %03d/%03d PSNR: %f, SSIM: %f", idx, max_iter, psnr, ssim_value)
+                # logging.info("[Validation] Idx: %03d/%03d PSNR: %f, SSIM: %f", idx, max_iter, psnr, ssim_value)
+                logging.info("[Validation] Idx: %03d/%03d PSNR: %f", idx, max_iter, psnr)
 
     logging.info("\n")
     model.train()
