@@ -11,7 +11,12 @@ from absl import logging
 from torch.utils.tensorboard import SummaryWriter
 
 from lib.layers.convir_layers import ConvIR
-from lib.layers.data import save_image, test_dataloader, train_dataloader, valid_dataloader
+from lib.layers.data import (
+    save_image,
+    test_dataloader,
+    train_dataloader,
+    valid_dataloader,
+)
 from lib.layers.gradual_warmup import GradualWarmupScheduler
 from ignite.metrics import SSIM
 
@@ -252,14 +257,16 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
                 loss = loss_content + 0.1 * loss_fft
 
             # Autograd mixed precision gradient penalty
-            scaled_grad_params = torch.autograd.grad(outputs=scaler.scale(loss), inputs=model.parameters(), retain_graph=True)
-            inv_scale = 1./scaler.get_scale()
+            scaled_grad_params = torch.autograd.grad(
+                outputs=scaler.scale(loss), inputs=model.parameters(), retain_graph=True
+            )
+            inv_scale = 1.0 / scaler.get_scale()
             grad_params = [p * inv_scale for p in scaled_grad_params]
 
             with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
                 grad_norm = 0
                 for grad in grad_params:
-                    grad_norm += grad.pow(2).sum() # L2 gradient penalty
+                    grad_norm += grad.pow(2).sum()  # L2 gradient penalty
                 grad_norm = grad_norm.sqrt()
                 loss = loss + grad_norm
 
@@ -364,6 +371,7 @@ def test(model: ConvIR, device: torch.device, args: EvalArgs):
 
     with torch.inference_mode():
         psnr_adder = Adder()
+        ssim_adder = SSIM(device=device, data_range=1.0)
         for iter_idx, data in enumerate(dataloader):
             input_img, label_img, name = data
 
@@ -381,9 +389,17 @@ def test(model: ConvIR, device: torch.device, args: EvalArgs):
                 save_name = args.result_dir / name[0]
                 save_image(pred_clip.squeeze(0), save_name)
 
-            psnr = peak_signal_noise_ratio(pred_clip.squeeze(0), label_img.squeeze(0))
-            psnr_adder(psnr)
-            logging.info("%d iter PSNR: %.4f time: %f", iter_idx + 1, psnr, elapsed)
+            psnr_adder(
+                peak_signal_noise_ratio(pred_clip.squeeze(0), label_img.squeeze(0))
+            )
+            ssim_adder.update((pred_clip, label_img))
+            logging.info(
+                "%d iter avg PSNR so far: %.4f avg SSIM so far: %.4f time: %f",
+                iter_idx + 1,
+                psnr_adder.average(),
+                ssim_adder.compute(),
+                elapsed,
+            )
 
         logging.info("==========================================================")
         logging.info("The average PSNR is %.4f dB", psnr_adder.average())

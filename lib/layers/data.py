@@ -45,8 +45,8 @@ def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=Tru
                 NormalizeRange(),
                 v2.ScaleJitter(target_size=(256, 256), scale_range=(0.8, 1.2)),
                 v2.RandomResizedCrop(256),
-                # v2.ColorJitter(), # a quanto pare modificare il colore distrugge tutto?
-                # v2.RandomInvert(),
+                v2.ColorJitter(), # a quanto pare modificare il colore distrugge tutto?
+                v2.RandomInvert(),
                 v2.RandomHorizontalFlip(p=0.5),
             ]
         )
@@ -131,8 +131,8 @@ class DeblurDataset(Dataset):
             image = self.transform(image)
             label = self.transform(label)
         else:
-            image = v2.functional.to_dtype(image, torch.get_default_dtype())
-            label = v2.functional.to_dtype(label, torch.get_default_dtype())
+            image = v2.functional.to_dtype(image, torch.get_default_dtype()) / 255.0
+            label = v2.functional.to_dtype(label, torch.get_default_dtype()) / 255.0
 
         if self.is_test:
             return image, label, blur_path.name  # include name if needed
