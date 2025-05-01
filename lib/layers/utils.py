@@ -338,7 +338,7 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
         if epoch_idx % args.valid_freq == 0:
             val_gopro = valid(model, device, args, epoch_idx)
             logging.info(
-                "%03d epoch \n Average GOPRO PSNR %.2f dB" % (epoch_idx, val_gopro)
+                "%03d epoch \n Average GOPRO PSNR %.2f dB", epoch_idx, val_gopro
             )
             writer.add_scalar("PSNR_GOPRO", val_gopro, epoch_idx)
             if val_gopro >= best_psnr:

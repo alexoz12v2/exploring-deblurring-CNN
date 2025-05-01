@@ -128,8 +128,10 @@ class DeblurDataset(Dataset):
         label = decode_image(self._blur_to_sharp_path(blur_path), mode=ImageReadMode.RGB)
 
         if self.transform:
-            image = self.transform(image)
-            label = self.transform(label)
+            both = torch.cat((image.unsqueeze(0), label.unsqueeze(0)), 0)
+            both = self.transform(both)
+            image = both[0]
+            label = both[1]
         else:
             image = v2.functional.to_dtype(image, torch.get_default_dtype()) / 255.0
             label = v2.functional.to_dtype(label, torch.get_default_dtype()) / 255.0
