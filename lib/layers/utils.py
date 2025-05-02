@@ -254,7 +254,7 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
                 loss_content = l1 + l2 + l3
                 loss_fft = f1 + f2 + f3
 
-                loss = loss_content + 0.1 * loss_fft
+                loss = loss_content + 0.2 * loss_fft
 
             # Autograd mixed precision gradient penalty
             scaled_grad_params = torch.autograd.grad(
@@ -344,13 +344,24 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
             if val_gopro >= best_psnr:
                 logging.info("Saving model... (best validation so far)")
                 torch.save(
-                    {"model": model.state_dict()},
+                    {
+                        "model": model.state_dict(),
+                        "epoch": epoch_idx,
+                        "optimizer": optimizer.state_dict(),
+                    }, 
                     args.model_save_dir / "Best.pkl",
                 )
 
     logging.info("Saving model... (end of training)")
     save_name = args.model_save_dir / "Final.pkl"
-    torch.save({"model": model.state_dict()}, save_name)
+    torch.save(
+        {
+            "model": model.state_dict(),
+            "epoch": epoch_idx,
+            "optimizer": optimizer.state_dict(),
+        }, 
+        save_name,
+    )
 
 
 # Eval ------------------------------------------------------------------------
