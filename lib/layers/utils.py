@@ -254,7 +254,7 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
                 loss_content = l1 + l2 + l3
                 loss_fft = f1 + f2 + f3
 
-                loss = loss_content + 0.2 * loss_fft
+                loss = loss_content + 0.1 * loss_fft
 
             # Autograd mixed precision gradient penalty
             scaled_grad_params = torch.autograd.grad(
