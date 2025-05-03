@@ -7,6 +7,7 @@ py_library(
         ":__init__.py", 
         ":layers/__init__.py",
         ":layers/convir_layers.py",
+		":layers/multiscale_layers.py",
         ":layers/data.py",
         ":layers/gradual_warmup.py",
         ":layers/original/__init__.py",
