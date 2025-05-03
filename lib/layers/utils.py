@@ -345,13 +345,24 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
             if val_gopro >= best_psnr:
                 logging.info("Saving model... (best validation so far)")
                 torch.save(
-                    {"model": model.state_dict()},
+                    {
+                        "model": model.state_dict(),
+                        "epoch": epoch_idx,
+                        "optimizer": optimizer.state_dict(),
+                    }, 
                     args.model_save_dir / "Best.pkl",
                 )
 
     logging.info("Saving model... (end of training)")
     save_name = args.model_save_dir / "Final.pkl"
-    torch.save({"model": model.state_dict()}, save_name)
+    torch.save(
+        {
+            "model": model.state_dict(),
+            "epoch": epoch_idx,
+            "optimizer": optimizer.state_dict(),
+        }, 
+        save_name,
+    )
 
 
 # Eval ------------------------------------------------------------------------
