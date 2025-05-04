@@ -1,9 +1,7 @@
-import os
 import time
 from pathlib import Path
 from typing import NamedTuple
 
-from torchvision.transforms.functional import to_pil_image
 import torch
 import torch.nn.functional as F
 from torcheval.metrics.functional import peak_signal_noise_ratio
@@ -168,11 +166,16 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
         torch.amp.autocast_mode.is_autocast_available(device.type),
     )
     scaler = torch.amp.GradScaler(device=device.type)
+    if device.type == 'cuda':
+        low_prec_type = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+    else:
+        low_prec_type = torch.bfloat16
+
     for epoch_idx in range(epoch, args.num_epoch + 1):
         epoch_timer.tic()
         iter_timer.tic()
         for iter_idx, batch_data in enumerate(dataloader):
-            with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
+            with torch.amp.autocast(device_type=device.type, dtype=low_prec_type):
                 input_img, label_img = batch_data
                 input_img = input_img.to(device=device, non_blocking=True)
                 label_img = label_img.to(device=device, non_blocking=True)
@@ -264,7 +267,7 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
             inv_scale = 1.0 / scaler.get_scale()
             grad_params = [p * inv_scale for p in scaled_grad_params]
 
-            with torch.amp.autocast(device_type=device.type, dtype=torch.bfloat16):
+            with torch.amp.autocast(device_type=device.type, dtype=low_prec_type):
                 grad_norm = 0
                 for grad in grad_params:
                     grad_norm += grad.pow(2).sum()  # L2 gradient penalty
