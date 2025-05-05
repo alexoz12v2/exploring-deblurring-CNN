@@ -49,6 +49,7 @@ def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=Tru
                 v2.RandomHorizontalFlip(p=0.5),
             ]
         )
+
     dataloader = DataLoader(
         DeblurDataset(image_dir, transform=transform),
         batch_size=batch_size,
@@ -103,14 +104,14 @@ class DeblurDataset(Dataset):
                 for dir in dir_list[int(len(dir_list) * 0.7) :]:
                     self.image_list.extend(
                         chain(
-                            dir.rglob("*/blur/*.jpeg"), dir.rglob("*/blur/*.jpg"), dir.rglob("*/blur/*.png")
+                            dir.rglob("blur/*.jpeg"), dir.rglob("blur/*.jpg"), dir.rglob("blur/*.png")
                         )
                     )
             else:
                 for dir in dir_list[: int(len(dir_list) * 0.7)]:
                     self.image_list.extend(
                         chain(
-                            dir.rglob("*/blur/*.jpeg"), dir.rglob("*/blur/*.jpg"), dir.rglob("*/blur/*.png")
+                            dir.rglob("blur/*.jpeg"), dir.rglob("blur/*.jpg"), dir.rglob("blur/*.png")
                         )
                     )
         self._check_image(self.image_list)
