@@ -61,8 +61,8 @@ def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=Tru
 
 
 def test_dataloader(path: Path, batch_size=1, num_workers=0):
-    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange(), v2.CenterCrop(256)])
-    image_dir = path / "test"
+    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange()])#, v2.CenterCrop(256)])
+    image_dir = path / "test/blur"
     dataloader = DataLoader(
         DeblurDataset(image_dir, is_test=True, transform=transform),
         batch_size=batch_size,
@@ -75,9 +75,9 @@ def test_dataloader(path: Path, batch_size=1, num_workers=0):
 
 
 def valid_dataloader(path, batch_size=1, num_workers=0):
-    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange(), v2.CenterCrop(256)])
+    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange()])#, v2.CenterCrop(256)])
     dataloader = DataLoader(
-        DeblurDataset(path / "train", is_valid=True, transform=transform),
+        DeblurDataset(path / "train/blur", is_valid=True, transform=transform),
         batch_size=batch_size,
         shuffle=False,
         num_workers=num_workers,

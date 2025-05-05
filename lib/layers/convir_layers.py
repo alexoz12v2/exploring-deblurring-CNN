@@ -755,7 +755,7 @@ class EBlock(nn.Module):
         layers.append(
             ResBlock(
                 ResBlock.Input(
-                    in_channel=out_channel, out_channel=out_channel, has_msm=True
+                    in_channel=out_channel, out_channel=out_channel, has_msm=False
                 )
             )
         )
@@ -776,7 +776,7 @@ class DBlock(nn.Module):
         ]
         layers.append(
             ResBlock(
-                ResBlock.Input(in_channel=channel, out_channel=channel, has_msm=True)
+                ResBlock.Input(in_channel=channel, out_channel=channel, has_msm=False)
             )
         )
         self.layers = nn.Sequential(*layers)
