@@ -34,3 +34,6 @@ env/
 
 # torch run log
 runs/
+
+# stuff
+docs/possibilities.md

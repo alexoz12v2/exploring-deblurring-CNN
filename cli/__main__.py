@@ -1,5 +1,4 @@
 import argparse
-import os
 import sys
 from pathlib import Path
 from pprint import pformat
@@ -8,7 +7,8 @@ from absl import app, logging
 import torch
 
 from lib.layers.convir_layers import build_net
-from lib.layers.utils import EvalArgs, TrainArgs, train, test, valid
+from lib.layers.multiscale_layers import MultiScaleNet
+from lib.layers.utils import EvalArgs, TrainArgs, test_multiscale, train, test, valid
 
 
 def main(args: list[str]) -> None:
@@ -46,13 +46,14 @@ def main(args: list[str]) -> None:
     test_parser.add_argument('-tm', '--test_model', type=Path, required=True, metavar="<dir>", help="file containing model checkpoint")
     test_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to test data")
     test_parser.add_argument('-rd', '--result_dir', type=Path, metavar="<dir>", help="if present, path in which the resulting image will be saved")
-    # fmt: on
+    test_parser.add_argument('-malt', '--alternative_multiscale_model', action='store_true', help="Use alternative model based on residual blocks")
 
     # sucommand: validate
     validation_parser = subparsers.add_parser("validate", help="Start validation of a trained model")
     validation_parser.add_argument('-tm', '--test_model', type=Path, required=True, metavar="<dir>", help="file containing model checkpoint")
     validation_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to test data")
     validation_parser.add_argument('-rd', '--result_dir', type=Path, metavar="<dir>", help="if present, path in which the results of the validation will be saved")
+    # fmt: on
 
     logging.info("Start")
 
@@ -78,24 +79,41 @@ def main(args: list[str]) -> None:
                 **{k: args.__dict__[k] for k in TrainArgs._fields if k in args.__dict__}
             )
             model = build_net().to(device)
+            model.compile()
             if logging.level_info():
                 logging.info("Train Args: \n%s\n", pformat(train_args._asdict()))
+
+            # ctrain = torch.compile(train)
+            # ctrain(model, device, train_args)
             train(model, device, train_args)
         case "test":
             d = {k: args.__dict__[k] for k in EvalArgs._fields if k in args.__dict__}
             d["save_image"] = args.result_dir is not None
             test_args = EvalArgs(**d)
-            model = build_net().to(device)
+            no_multi = not args.alternative_multiscale_model 
+            if no_multi:
+                model = build_net().to(device)
+                model.load_state_dict(torch.load(test_args.test_model, weights_only=True)["model"])
+            else:
+                model = MultiScaleNet(n_feats=64, n_resblocks=9, is_skip=True).to(device)
+                model.load_state_dict(torch.load(test_args.test_model))
+
+            model.compile()
+
             if logging.level_info():
                 logging.info("Train Args: \n%s\n", pformat(test_args._asdict()))
-            test(model, device, test_args)
+
+            if no_multi:
+                test(model, device, test_args)
+            else:
+                test_multiscale(model, device, test_args)
         
         case "validate":
             d = {k: args.__dict__[k] for k in EvalArgs._fields if k in args.__dict__}
             d["save_image"] = args.result_dir is not None
             valid_args = EvalArgs(**d)
             model = build_net().to(device)
-            model.load_state_dict(torch.load(valid_args.test_model, weights_only=True)["model"])
+            model.compile()
             valid(model, device, valid_args, 0)
             
 
