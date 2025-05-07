@@ -34,6 +34,7 @@ def main(args: list[str]) -> None:
     train_parser.add_argument('-wn', '--num_worker', type=int, default=8, metavar="<n>", help="number of worker processes for the DataLoader")
     train_parser.add_argument('-sn', '--save_freq', type=int, default=100, metavar="<n>", help="frequency (in epochs) to save model checkpoints")
     train_parser.add_argument('-vn', '--valid_freq', type=int, default=100, metavar="<n>", help="frequency (in epochs) to run validation")
+    train_parser.add_argument('-vb', '--validation_batch_size', type=int, default=1, metavar='<n>', help="batch size for the validation dataloader (for bigger models it's recommended to leave the default)")
     train_parser.add_argument('-rp', '--resume', type=Path, default=None, metavar="<dir>", help="(optional) path to a model checkpoint to resume training from")
     train_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to training data directory")
     train_parser.add_argument('-msd', '--model_save_dir', type=Path, default=Path.home() / ".convir", metavar="<dir>", help="path to directory where model checkpoint will be saved (default: ~/.convir)")

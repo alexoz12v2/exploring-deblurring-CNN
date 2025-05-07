@@ -130,6 +130,7 @@ class TrainArgs(NamedTuple):
     save_freq: int = 10
     accumulate_grad_freq: int = 2
     lambda_par: float = 0.1
+    validation_batch_size: int=1
 
 def train(model: ConvIR, device: torch.device, args: TrainArgs):
     print(args)
