@@ -36,6 +36,7 @@ class TrainArgs(NamedTuple):
     valid_freq: int = 10
     save_freq: int = 10
     accumulate_grad_freq: int = 2
+    lambda_par: float = 0.1
 
 
 def valid(model: ConvIR, device: torch.device, args: TrainArgs, ep: int):
@@ -125,12 +126,16 @@ def check_lr(optimizer):
 
 # Train -----------------------------------------------------------------------
 def train(model: ConvIR, device: torch.device, args: NamedTuple):
+    print(args)
     model.train()
     criterion = torch.nn.L1Loss()
 
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.learning_rate, betas=(0.9, 0.999), eps=1e-8
     )
+
+    lambda_par = args.lambda_par
+
     dataloader = train_dataloader(args.data_dir, args.batch_size, args.num_worker)
     max_iter = len(dataloader)
     warmup_epochs = 3
@@ -259,7 +264,7 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
                 loss_content = l1 + l2 + l3
                 loss_fft = f1 + f2 + f3
 
-                loss = loss_content + 0.1 * loss_fft
+                loss = loss_content + lambda_par * loss_fft
 
             # Autograd mixed precision gradient penalty
             scaled_grad_params = torch.autograd.grad(

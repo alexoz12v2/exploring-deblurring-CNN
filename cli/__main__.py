@@ -40,6 +40,7 @@ def main(args: list[str]) -> None:
     train_parser.add_argument('-agf', '--accumulate-grad-freq', type=int, default=1, metavar='<n>', help="frequency (in batch indexes) after which the cumulated gradient is transferred to the model")
     train_parser.add_argument('-rd', '--result-dir', type=Path, required=True, metavar='<dir>', help='Directory in which deblurred validation images will be stored')
     train_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version (s, b, l) of ConvIR to train')
+    train_parser.add_argument('-l', '--lambda_par', type=float, required=True, metavar='<f>', help='value of the hyperparameter lambda')
 
     # subcommand: test
     test_parser = subparsers.add_parser("test", help="Test a ConvIR net instance")
