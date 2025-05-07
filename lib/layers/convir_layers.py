@@ -166,7 +166,7 @@ class FAM(nn.Module):
 
 
 class ConvIR(nn.Module):
-    def __init__(self, num_res=16):
+    def __init__(self, num_res=4):
         super(ConvIR, self).__init__()
 
         base_channel = 32
