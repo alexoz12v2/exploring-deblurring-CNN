@@ -7,8 +7,7 @@ from absl import app, logging
 import torch
 
 from lib.layers.convir_layers import build_net
-from lib.layers.multiscale_layers import MultiScaleNet
-from lib.layers.utils import EvalArgs, TrainArgs, test_multiscale, train, test, valid
+from lib.layers.utils import EvalArgs, TrainArgs, train, test, valid
 
 
 def main(args: list[str]) -> None:
@@ -40,19 +39,22 @@ def main(args: list[str]) -> None:
     train_parser.add_argument('-msd', '--model_save_dir', type=Path, default=Path.home() / ".convir", metavar="<dir>", help="path to directory where model checkpoint will be saved (default: ~/.convir)")
     train_parser.add_argument('-agf', '--accumulate-grad-freq', type=int, default=1, metavar='<n>', help="frequency (in batch indexes) after which the cumulated gradient is transferred to the model")
     train_parser.add_argument('-rd', '--result-dir', type=Path, required=True, metavar='<dir>', help='Directory in which deblurred validation images will be stored')
+    train_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version (s, b, l) of ConvIR to train')
 
     # subcommand: test
     test_parser = subparsers.add_parser("test", help="Test a ConvIR net instance")
     test_parser.add_argument('-tm', '--test_model', type=Path, required=True, metavar="<dir>", help="file containing model checkpoint")
     test_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to test data")
     test_parser.add_argument('-rd', '--result_dir', type=Path, metavar="<dir>", help="if present, path in which the resulting image will be saved")
-    test_parser.add_argument('-malt', '--alternative_multiscale_model', action='store_true', help="Use alternative model based on residual blocks")
+    test_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version (s, b, l) of ConvIR to test')
+    test_parser.add_argument('-sc', '--save_comparison', action='store_true', help='if present togerther with rd, it will also save the difference between the input and the output image')
 
     # sucommand: validate
     validation_parser = subparsers.add_parser("validate", help="Start validation of a trained model")
     validation_parser.add_argument('-tm', '--test_model', type=Path, required=True, metavar="<dir>", help="file containing model checkpoint")
     validation_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to test data")
     validation_parser.add_argument('-rd', '--result_dir', type=Path, metavar="<dir>", help="if present, path in which the results of the validation will be saved")
+    validation_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version (s, b, l) of ConvIR to validate')
     # fmt: on
 
     logging.info("Start")
@@ -78,42 +80,64 @@ def main(args: list[str]) -> None:
             train_args = TrainArgs(
                 **{k: args.__dict__[k] for k in TrainArgs._fields if k in args.__dict__}
             )
-            model = build_net().to(device)
-            #model.compile()
+
+            match args.convir_version:
+                case 's':
+                    n = 4
+                case 'b':
+                    n = 8
+                case 'l':
+                    n = 16
+                case _:
+                    parser.exit(1, "Invalid ConvIR version")
+
+            model = build_net(n).to(device)
+
             if logging.level_info():
                 logging.info("Train Args: \n%s\n", pformat(train_args._asdict()))
-
-            # ctrain = torch.compile(train)
-            # ctrain(model, device, train_args)
             train(model, device, train_args)
+
+
         case "test":
             d = {k: args.__dict__[k] for k in EvalArgs._fields if k in args.__dict__}
             d["save_image"] = args.result_dir is not None
+            d["store_comparison"] = args.save_comparison is not None
             test_args = EvalArgs(**d)
-            no_multi = not args.alternative_multiscale_model 
-            if no_multi:
-                model = build_net().to(device)
-                model.load_state_dict(torch.load(test_args.test_model, weights_only=True)["model"])
-            else:
-                model = MultiScaleNet(n_feats=64, n_resblocks=9, is_skip=True).to(device)
-                model.load_state_dict(torch.load(test_args.test_model))
 
-            # model.compile()
+            match args.convir_version:
+                case 's':
+                    n = 4
+                case 'b':
+                    n = 8
+                case 'l':
+                    n = 16
+                case _:
+                    parser.exit(1, "Invalid ConvIR version")
+            model = build_net(n).to(device)
+            model.load_state_dict(torch.load(test_args.test_model, weights_only=True)["model"])
 
             if logging.level_info():
                 logging.info("Train Args: \n%s\n", pformat(test_args._asdict()))
 
-            if no_multi:
-                test(model, device, test_args)
-            else:
-                test_multiscale(model, device, test_args)
+            test(model, device, test_args)
+
         
         case "validate":
             d = {k: args.__dict__[k] for k in EvalArgs._fields if k in args.__dict__}
             d["save_image"] = args.result_dir is not None
             valid_args = EvalArgs(**d)
-            model = build_net().to(device)
-            #model.compile()
+
+            match args.convir_version:
+                case 's':
+                    n = 4
+                case 'b':
+                    n = 8
+                case 'l':
+                    n = 16
+                case _:
+                    parser.exit(1, "Invalid ConvIR version")
+            model = build_net(n).to(device)
+            
             valid(model, device, valid_args, 0)
             
 

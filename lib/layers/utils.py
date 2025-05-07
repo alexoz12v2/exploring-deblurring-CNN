@@ -28,14 +28,14 @@ class TrainArgs(NamedTuple):
     model_save_dir: Path | str
     result_dir: Path
     learning_rate: float = 1e-4
-    batch_size: int = 32
-    num_worker: int = 0
+    batch_size: int = 8
+    num_worker: int = 8
     num_epoch: int = 50
     resume: bool = False
     print_freq: int = 10
     valid_freq: int = 10
     save_freq: int = 10
-    accumulate_grad_freq: int = 1
+    accumulate_grad_freq: int = 2
 
 
 def valid(model: ConvIR, device: torch.device, args: TrainArgs, ep: int):
@@ -375,53 +375,7 @@ class EvalArgs(NamedTuple):
     data_dir: Path
     save_image: bool
     result_dir: Path
-
-
-def test_multiscale(model: ConvIR, device: torch.device, args: EvalArgs):
-    dataloader = test_dataloader(args.data_dir, batch_size=1, num_workers=0)
-    adder = Adder()
-    model.eval()
-
-    with torch.inference_mode():
-        psnr_adder = Adder()
-        ssim_adder = SSIM(device=device, data_range=1.0)
-        for iter_idx, data in enumerate(dataloader):
-            input_img, label_img, name = data
-
-            input_img = input_img.to(device)
-            input_img_2 = v2.functional.resize(input_img, [input_img.shape[2] // 2, input_img.shape[3] // 2])
-            input_img_3 = v2.functional.resize(input_img, [input_img.shape[2] // 4, input_img.shape[3] // 4])
-
-            label_img = label_img.to(device)
-            tm = time.time()
-
-            pred = model((input_img, input_img_2, input_img_3))[0]
-
-            elapsed = time.time() - tm
-            adder(elapsed)
-
-            pred_clip = torch.clamp(pred, 0, 1)
-
-            if args.save_image:
-                save_image(pred_clip.squeeze(0), args.result_dir / name[0])
-                save_image(label_img.squeeze(0), args.result_dir / f'original_{name[0]}')
-
-            psnr_adder(
-                peak_signal_noise_ratio(pred_clip.squeeze(0), label_img.squeeze(0))
-            )
-            ssim_adder.update((pred_clip, label_img))
-            logging.info(
-                "%d iter avg PSNR so far: %.4f avg SSIM so far: %.4f time: %f",
-                iter_idx + 1,
-                psnr_adder.average(),
-                ssim_adder.compute(),
-                elapsed,
-            )
-
-        logging.info("==========================================================")
-        logging.info("The average PSNR is %.4f dB", psnr_adder.average())
-        logging.info("Average time: %f", adder.average())
-
+    store_comparison: bool
 
 def test(model: ConvIR, device: torch.device, args: EvalArgs):
     dataloader = test_dataloader(args.data_dir, batch_size=1, num_workers=0)
@@ -446,7 +400,8 @@ def test(model: ConvIR, device: torch.device, args: EvalArgs):
 
             if args.save_image:
                 save_image(pred_clip.squeeze(0), args.result_dir / name[0])
-                save_image(label_img.squeeze(0), args.result_dir / f'original_{name[0]}')
+                if args.store_comparison:
+                    save_image((torch.abs(pred_clip-input_img)*10).squeeze(0), args.result_dir / f'comparison_{name[0]}')
 
             psnr_adder(
                 peak_signal_noise_ratio(pred_clip.squeeze(0), label_img.squeeze(0))

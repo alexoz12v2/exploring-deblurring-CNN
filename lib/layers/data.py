@@ -93,9 +93,9 @@ class DeblurDataset(Dataset):
         if is_test:
             self.image_list.extend(
                 chain(
-                    image_dir.rglob("*/blur/*.jpeg"),
-                    image_dir.rglob("*/blur/*.jpg"),
-                    image_dir.rglob("*/blur/*.png"),
+                    image_dir.rglob("blur/*.jpeg"),
+                    image_dir.rglob("blur/*.jpg"),
+                    image_dir.rglob("blur/*.png"),
                 )
             )
         else:
