@@ -78,7 +78,7 @@ def main(args: list[str]) -> None:
             train_args = TrainArgs(
                 **{k: args.__dict__[k] for k in TrainArgs._fields if k in args.__dict__}
             )
-            model = build_net().to(device)
+            model = build_net(type="S").to(device)
             #model.compile()
             if logging.level_info():
                 logging.info("Train Args: \n%s\n", pformat(train_args._asdict()))

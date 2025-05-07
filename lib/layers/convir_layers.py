@@ -725,7 +725,7 @@ class ResBlock(nn.Module):
             )
         )
         msm = MultiScaleModule(
-            MultiScaleModule.Input(k=conf.in_channel, k_out=conf.out_channel)
+            MultiScaleModule.Input(k=conf.out_channel, k_out=conf.out_channel)
         )
         conv2 = BasicConv(
             BasicConv.Input(
@@ -734,9 +734,9 @@ class ResBlock(nn.Module):
         )
         self.main = nn.Sequential(
             OrderedDict(
-                [("Conv1", conv1)] + [("MSM", msm)]
-                if conf.has_msm
-                else [] + [("Conv2", conv2)]
+                [("Conv1", conv1)] +
+                ([("MSM", msm)]  if conf.has_msm  else []) +
+                [("Conv2", conv2)]
             )
         )
 
@@ -851,7 +851,7 @@ class FAM(nn.Module):
 
 
 class ConvIR(nn.Module):
-    def __init__(self, num_res=16):
+    def __init__(self, num_res=4):
         super(ConvIR, self).__init__()
 
         base_channel = 32
@@ -1026,5 +1026,12 @@ class ConvIR(nn.Module):
         return outputs
 
 
-def build_net():
-    return ConvIR()
+def build_net(type: str = "S"):
+    num_res_dict = {
+        "S": 4,
+        "M": 8,
+        "L": 16
+    }
+
+    num_res = num_res_dict.get(type.upper()[0], 4)
+    return ConvIR(num_res=num_res)
