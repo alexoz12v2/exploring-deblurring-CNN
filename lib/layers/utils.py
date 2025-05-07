@@ -23,25 +23,16 @@ import json
 
 
 # Valid -----------------------------------------------------------------------
-class TrainArgs(NamedTuple):
-    data_dir: Path | str
-    model_save_dir: Path | str
+class ValidArgs(NamedTuple):
+    test_model: Path | str
+    data_dir: Path
     result_dir: Path
-    learning_rate: float = 1e-4
-    batch_size: int = 8
-    num_worker: int = 8
-    num_epoch: int = 50
-    resume: bool = False
-    print_freq: int = 10
-    valid_freq: int = 10
-    save_freq: int = 10
-    accumulate_grad_freq: int = 2
-    lambda_par: float = 0.1
+    batch_size: int
 
 
-def valid(model: ConvIR, device: torch.device, args: TrainArgs, ep: int):
+def valid(model: ConvIR, device: torch.device, args: ValidArgs, ep: int):
     print(args)
-    gopro = valid_dataloader(args.data_dir, batch_size=2, num_workers=0)
+    gopro = valid_dataloader(args.data_dir, batch_size=args.batch_size, num_workers=0)
     max_iter = len(gopro)
     model.eval()
     psnr_adder = Adder()
@@ -125,7 +116,22 @@ def check_lr(optimizer):
 
 
 # Train -----------------------------------------------------------------------
-def train(model: ConvIR, device: torch.device, args: NamedTuple):
+class TrainArgs(NamedTuple):
+    data_dir: Path | str
+    model_save_dir: Path | str
+    result_dir: Path
+    learning_rate: float = 1e-4
+    batch_size: int = 8
+    num_worker: int = 8
+    num_epoch: int = 50
+    resume: bool = False
+    print_freq: int = 10
+    valid_freq: int = 10
+    save_freq: int = 10
+    accumulate_grad_freq: int = 2
+    lambda_par: float = 0.1
+
+def train(model: ConvIR, device: torch.device, args: TrainArgs):
     print(args)
     model.train()
     criterion = torch.nn.L1Loss()
@@ -375,14 +381,14 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
 
 
 # Eval ------------------------------------------------------------------------
-class EvalArgs(NamedTuple):
+class TestArgs(NamedTuple):
     test_model: Path
     data_dir: Path
     save_image: bool
     result_dir: Path
     store_comparison: bool
 
-def test(model: ConvIR, device: torch.device, args: EvalArgs):
+def test(model: ConvIR, device: torch.device, args: TestArgs):
     dataloader = test_dataloader(args.data_dir, batch_size=1, num_workers=0)
     adder = Adder()
     model.eval()

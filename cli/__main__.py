@@ -7,7 +7,7 @@ from absl import app, logging
 import torch
 
 from lib.layers.convir_layers import build_net
-from lib.layers.utils import EvalArgs, TrainArgs, train, test, valid
+from lib.layers.utils import ValidArgs, TrainArgs, TestArgs, train, test, valid
 
 
 def main(args: list[str]) -> None:
@@ -56,6 +56,8 @@ def main(args: list[str]) -> None:
     validation_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to test data")
     validation_parser.add_argument('-rd', '--result_dir', type=Path, metavar="<dir>", help="if present, path in which the results of the validation will be saved")
     validation_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version (s, b, l) of ConvIR to validate')
+    validation_parser.add_argument('-b', '--batch_size', type=int, default=1, metavar="<n>", help="batch size for the validation dataloader (for big models it's recommended to leave the default)")
+
     # fmt: on
 
     logging.info("Start")
@@ -100,10 +102,10 @@ def main(args: list[str]) -> None:
 
 
         case "test":
-            d = {k: args.__dict__[k] for k in EvalArgs._fields if k in args.__dict__}
+            d = {k: args.__dict__[k] for k in TestArgs._fields if k in args.__dict__}
             d["save_image"] = args.result_dir is not None
             d["store_comparison"] = args.save_comparison is not None
-            test_args = EvalArgs(**d)
+            test_args = TestArgs(**d)
 
             match args.convir_version:
                 case 's':
@@ -124,9 +126,8 @@ def main(args: list[str]) -> None:
 
         
         case "validate":
-            d = {k: args.__dict__[k] for k in EvalArgs._fields if k in args.__dict__}
-            d["save_image"] = args.result_dir is not None
-            valid_args = EvalArgs(**d)
+            d = {k: args.__dict__[k] for k in ValidArgs._fields if k in args.__dict__}
+            valid_args = ValidArgs(**d)
 
             match args.convir_version:
                 case 's':
