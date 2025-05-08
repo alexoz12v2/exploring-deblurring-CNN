@@ -38,11 +38,8 @@ def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=Tru
     if use_transform:
         transform = v2.Compose(
             [
-                # Autoaugment paper: https://arxiv.org/pdf/1805.09501
-                v2.AutoAugment(),
                 v2.ToDtype(torch.get_default_dtype()),
                 NormalizeRange(),
-                v2.ScaleJitter(target_size=(256, 256), scale_range=(0.8, 1.2)),
                 v2.RandomResizedCrop(256),
                 v2.ColorJitter(), # a quanto pare modificare il colore distrugge tutto?
                 v2.RandomInvert(),
@@ -101,14 +98,14 @@ class DeblurDataset(Dataset):
         else:
             dir_list = sorted(list(image_dir.iterdir()))
             if is_valid:
-                for dir in dir_list[int(len(dir_list) * 0.7) :]:
+                for dir in dir_list[int(len(dir_list) * 0.85) :]:
                     self.image_list.extend(
                         chain(
                             dir.rglob("blur/*.jpeg"), dir.rglob("blur/*.jpg"), dir.rglob("blur/*.png")
                         )
                     )
             else:
-                for dir in dir_list[: int(len(dir_list) * 0.7)]:
+                for dir in dir_list[: int(len(dir_list) * 0.85)]:
                     self.image_list.extend(
                         chain(
                             dir.rglob("blur/*.jpeg"), dir.rglob("blur/*.jpg"), dir.rglob("blur/*.png")

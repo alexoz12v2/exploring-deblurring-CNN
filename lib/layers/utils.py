@@ -133,7 +133,9 @@ class TrainArgs(NamedTuple):
     validation_batch_size: int=1
 
 def train(model: ConvIR, device: torch.device, args: TrainArgs):
-    print(args)
+    loss_dict = {"loss":[]}
+    loss_save_path = args.result_dir.joinpath("loss.json")
+
     model.train()
     criterion = torch.nn.L1Loss()
 
@@ -329,6 +331,8 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
                 iter_fft_adder.reset()
 
         # back to epoch loop
+        epoch_loss = epoch_pixel_adder.average() + args.lambda_par*epoch_fft_adder.average()
+
         if epoch_idx % args.save_freq == 0:
             logging.info("Saving model... (save frequency)")
             save_name = args.model_save_dir / f"model_{epoch_idx}.pkl"
@@ -340,20 +344,33 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
                 },
                 save_name,
             )
+            
+            loss_dict['loss'].append(epoch_loss)
+            with open(loss_save_path, mode="w") as f:
+                json.dump(loss_dict, f)
 
         logging.info(
-            "EPOCH: %02d\nElapsed time: %4.2f Epoch Pixel Loss: %7.4f Epoch FFT Loss: %7.4f",
+            "EPOCH: %02d\nElapsed time: %4.2f Epoch Pixel Loss: %7.4f Epoch FFT Loss: %7.4f, Epoch loss: %7.4f",
             epoch_idx,
             epoch_timer.toc(),
             epoch_pixel_adder.average(),
             epoch_fft_adder.average(),
+            epoch_loss,
         )
+
         epoch_fft_adder.reset()
         epoch_pixel_adder.reset()
         scheduler.step()
 
         if epoch_idx % args.valid_freq == 0:
-            val_gopro = valid(model, device, args, epoch_idx)
+            val_args = ValidArgs(
+                test_model=args.model_save_dir / f"model_{epoch_idx}.pkl",
+                data_dir=args.data_dir,
+                batch_size=args.validation_batch_size,
+                result_dir=args.result_dir
+            )
+            
+            val_gopro = valid(model, device, val_args, epoch_idx)
             logging.info(
                 "%03d epoch \n Average GOPRO PSNR %.2f dB", epoch_idx, val_gopro
             )
