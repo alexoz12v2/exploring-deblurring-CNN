@@ -98,7 +98,7 @@ class DeblurDataset(Dataset):
         else:
             dir_list = sorted(list(image_dir.iterdir()))
             if is_valid:
-                for dir in dir_list[int(len(dir_list) * 0.85) :]:
+                for dir in dir_list[int(len(dir_list) * 0.95) :]:
                     self.image_list.extend(
                         chain(
                             dir.rglob("blur/*.jpeg"), dir.rglob("blur/*.jpg"), dir.rglob("blur/*.png")

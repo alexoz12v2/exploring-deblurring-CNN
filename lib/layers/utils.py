@@ -332,6 +332,7 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
 
         # back to epoch loop
         epoch_loss = epoch_pixel_adder.average() + args.lambda_par*epoch_fft_adder.average()
+        loss_dict['loss'].append(epoch_loss)
 
         if epoch_idx % args.save_freq == 0:
             logging.info("Saving model... (save frequency)")
@@ -344,8 +345,7 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
                 },
                 save_name,
             )
-            
-            loss_dict['loss'].append(epoch_loss)
+
             with open(loss_save_path, mode="w") as f:
                 json.dump(loss_dict, f)
 
