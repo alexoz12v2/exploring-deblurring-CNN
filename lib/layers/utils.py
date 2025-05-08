@@ -133,7 +133,7 @@ class TrainArgs(NamedTuple):
     validation_batch_size: int=1
 
 def train(model: ConvIR, device: torch.device, args: TrainArgs):
-    loss_dict = {"loss":[]}
+    loss_dict = {"total":[], "frequency":[], "content":[]}
     loss_save_path = args.result_dir.joinpath("loss.json")
 
     model.train()
@@ -332,7 +332,9 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
 
         # back to epoch loop
         epoch_loss = epoch_pixel_adder.average() + args.lambda_par*epoch_fft_adder.average()
-        loss_dict['loss'].append(epoch_loss)
+        loss_dict['total'].append(epoch_loss)
+        loss_dict['content'].append(epoch_pixel_adder.average())
+        loss_dict['frequency'].append(epoch_fft_adder.average())
 
         if epoch_idx % args.save_freq == 0:
             logging.info("Saving model... (save frequency)")
