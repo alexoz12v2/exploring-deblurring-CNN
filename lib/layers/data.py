@@ -41,7 +41,7 @@ def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=Tru
                 v2.ToDtype(torch.get_default_dtype()),
                 NormalizeRange(),
                 v2.RandomResizedCrop(256),
-                v2.ColorJitter(), # a quanto pare modificare il colore distrugge tutto?
+                v2.ColorJitter(),
                 v2.RandomInvert(),
                 v2.RandomHorizontalFlip(p=0.5),
             ]
