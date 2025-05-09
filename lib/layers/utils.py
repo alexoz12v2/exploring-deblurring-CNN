@@ -133,7 +133,7 @@ class TrainArgs(NamedTuple):
     validation_batch_size: int=1
 
 def train(model: ConvIR, device: torch.device, args: TrainArgs):
-    loss_dict = {"lambda": args.lambda_par, "frequency":[], "content":[]}
+    loss_dict = {"lambda": args.lambda_par, "starting_epoch": 1, "frequency":[], "content":[]}
     loss_save_path = args.result_dir.joinpath("loss.json")
 
     model.train()
@@ -170,6 +170,8 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
         if loss_save_path.exists():
             with open(loss_save_path, mode='r') as f:
                 loss_dict = json.load(f)
+        else:
+            loss_dict["starting_epoch"] = epoch
 
 
     writer = SummaryWriter()
