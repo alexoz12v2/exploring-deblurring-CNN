@@ -346,15 +346,7 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
         if epoch_idx % args.save_freq == 0:
             logging.info("Saving model... (save frequency)")
             save_name = args.model_save_dir / f"model_{epoch_idx}.pkl"
-            torch.save(
-                {
-                    "model": model.state_dict(),
-                    "epoch": epoch_idx,
-                    "optimizer": optimizer.state_dict(),
-                    "scheduler": scheduler.state_dict(),
-                },
-                save_name,
-            )
+            save_model(model=model, scheduler=scheduler, optimizer=optimizer, epoch=epoch_idx, save_path=save_name)
 
             with open(loss_save_path, mode="w") as f:
                 json.dump(loss_dict, f)
@@ -387,25 +379,15 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
             writer.add_scalar("PSNR_GOPRO", val_gopro, epoch_idx)
             if val_gopro >= best_psnr:
                 logging.info("Saving model... (best validation so far)")
-                torch.save(
-                    {
-                        "model": model.state_dict(),
-                        "epoch": epoch_idx,
-                        "optimizer": optimizer.state_dict(),
-                    }, 
-                    args.model_save_dir / "Best.pkl",
-                )
+                save_model(model=model, scheduler=scheduler, optimizer=optimizer, epoch=epoch_idx, save_path=args.model_save_dir / "Best.pkl")
 
     logging.info("Saving model... (end of training)")
     save_name = args.model_save_dir / "Final.pkl"
-    torch.save(
-        {
-            "model": model.state_dict(),
-            "epoch": epoch_idx,
-            "optimizer": optimizer.state_dict(),
-        }, 
-        save_name,
-    )
+    save_model(model=model, scheduler=scheduler, optimizer=optimizer, epoch=epoch_idx, save_path=save_name)
+    with open(loss_save_path, mode="w") as f:
+        json.dump(loss_dict, f)
+
+    
 
 
 # Eval ------------------------------------------------------------------------
@@ -457,3 +439,15 @@ def test(model: ConvIR, device: torch.device, args: TestArgs):
         logging.info("==========================================================")
         logging.info("The average PSNR is %.4f dB", psnr_adder.average())
         logging.info("Average time: %f", adder.average())
+
+
+def save_model(model:ConvIR, scheduler:GradualWarmupScheduler, optimizer:torch.optim.Adam, epoch:int, save_path:Path):
+    torch.save(
+        {
+            "epoch": epoch,
+            "model": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "scheduler": scheduler.state_dict(),
+        }, 
+        save_path,
+    )
