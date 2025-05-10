@@ -164,6 +164,7 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
         epoch = state["epoch"]
         optimizer.load_state_dict(state["optimizer"])
         model.load_state_dict(state["model"])
+        scheduler.load_state_dict(state["scheduler"])
         logging.info("Resume from %d" % epoch)
         epoch += 1
 
@@ -350,6 +351,7 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
                     "model": model.state_dict(),
                     "epoch": epoch_idx,
                     "optimizer": optimizer.state_dict(),
+                    "scheduler": scheduler.state_dict(),
                 },
                 save_name,
             )
