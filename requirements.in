@@ -29,3 +29,4 @@ kaggle
 portalocker[redis]
 pyqt6
 matplotlib
+opencv-python

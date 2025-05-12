@@ -22,6 +22,14 @@ class NormalizeRange(v2.Transform):
         return inpt / 255.0
 
 
+test_transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange(), v2.CenterCrop(256)])
+
+
+def open_image(path: Path, device: torch.device, transform: v2.Transform = test_transform) -> torch.Tensor:
+    image = decode_image(path, mode=ImageReadMode.RGB).to(device)
+    return transform(image)
+
+
 def save_image(image_tensor: torch.Tensor, path: Path):
     # must be C x H x W
     if torch.is_floating_point(image_tensor):

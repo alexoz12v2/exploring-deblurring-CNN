@@ -7,8 +7,9 @@ from absl import app, logging
 import torch
 
 from lib.layers.convir_layers import build_net
+from lib.layers.data import open_image, save_image
 from lib.layers.multiscale_layers import MultiScaleNet
-from lib.layers.utils import EvalArgs, TrainArgs, test_multiscale, train, test, valid
+from lib.layers.utils import EvalArgs, TrainArgs, motion_deblur, test_multiscale, train, test, valid
 
 
 def main(args: list[str]) -> None:
@@ -48,11 +49,18 @@ def main(args: list[str]) -> None:
     test_parser.add_argument('-rd', '--result_dir', type=Path, metavar="<dir>", help="if present, path in which the resulting image will be saved")
     test_parser.add_argument('-malt', '--alternative_multiscale_model', action='store_true', help="Use alternative model based on residual blocks")
 
-    # sucommand: validate
+    # subcommand: validate
     validation_parser = subparsers.add_parser("validate", help="Start validation of a trained model")
     validation_parser.add_argument('-tm', '--test_model', type=Path, required=True, metavar="<dir>", help="file containing model checkpoint")
     validation_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to test data")
     validation_parser.add_argument('-rd', '--result_dir', type=Path, metavar="<dir>", help="if present, path in which the results of the validation will be saved")
+
+    # subcommand: wiener
+    wiener_parser = subparsers.add_parser("wiener", help="Deblur an image with a traditional image processing algorithm (Wiener Deconvolution)")
+    wiener_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to single image")
+    wiener_parser.add_argument('-rd', '--result_dir', type=Path, required=True, metavar="<dir>", help="path in which original and deblurred image will be saved")
+    wiener_parser.add_argument('--len-px', '-l', type=int, default=0, metavar="<px>", help="length, in number of pixels, of the motion blur")
+    wiener_parser.add_argument('--theta', '-t', type=float, default=0.0, metavar="<rad>", help="direction, in degrees, of the blur. 0 means right, 90 means up")
     # fmt: on
 
     logging.info("Start")
@@ -116,6 +124,26 @@ def main(args: list[str]) -> None:
             model.compile()
             valid(model, device, valid_args, 0)
             
+        case "wiener":
+            res_dir: Path = args.result_dir
+            data_dir: Path = args.data_dir
+            if res_dir is None or (not res_dir.is_dir() and res_dir.exists()):
+                parser.exit(1, "result path should be a directory")
+
+            if data_dir is None or not data_dir.exists() or not data_dir.is_file():
+                parser.exit(1, "data dir should be an existing image path")
+
+            res_dir.mkdir(parents=True, exist_ok=True)
+            input_image = open_image(data_dir, device)
+            result_image = motion_deblur(input_image)
+            save_image(input_image, res_dir / (data_dir.name[:-4] + '_original.png') )
+            save_image(result_image, res_dir / data_dir.name)
+            # Concatenate along width (dim=2)
+            combined = torch.cat([input_image, result_image], dim=2)  # (C, H, W+W)
+
+            # Save combined image
+            combined_path = res_dir / (data_dir.name[:-4] + '_combined.png')
+            save_image(combined, combined_path)
 
         case _:
             parser.exit(1, "Unrecognized command.")
