@@ -725,7 +725,7 @@ class ResBlock(nn.Module):
             )
         )
         msm = MultiScaleModule(
-            MultiScaleModule.Input(k=conf.in_channel, k_out=conf.out_channel)
+            MultiScaleModule.Input(k=conf.out_channel, k_out=conf.out_channel)
         )
         conv2 = BasicConv(
             BasicConv.Input(
@@ -734,9 +734,9 @@ class ResBlock(nn.Module):
         )
         self.main = nn.Sequential(
             OrderedDict(
-                [("Conv1", conv1)] + [("MSM", msm)]
-                if conf.has_msm
-                else [] + [("Conv2", conv2)]
+                [("Conv1", conv1)] +
+                ([("MSM", msm)]  if conf.has_msm  else []) +
+                [("Conv2", conv2)]
             )
         )
 
@@ -745,7 +745,7 @@ class ResBlock(nn.Module):
 
 
 class EBlock(nn.Module):
-    def __init__(self, out_channel, num_res=8):
+    def __init__(self, out_channel, num_res=8, has_msm=True):
         super(EBlock, self).__init__()
 
         layers = [
@@ -755,7 +755,7 @@ class EBlock(nn.Module):
         layers.append(
             ResBlock(
                 ResBlock.Input(
-                    in_channel=out_channel, out_channel=out_channel, has_msm=False
+                    in_channel=out_channel, out_channel=out_channel, has_msm=has_msm
                 )
             )
         )
@@ -767,7 +767,7 @@ class EBlock(nn.Module):
 
 
 class DBlock(nn.Module):
-    def __init__(self, channel, num_res=8):
+    def __init__(self, channel, num_res=8, has_msm=True):
         super(DBlock, self).__init__()
 
         layers = [
@@ -776,7 +776,7 @@ class DBlock(nn.Module):
         ]
         layers.append(
             ResBlock(
-                ResBlock.Input(in_channel=channel, out_channel=channel, has_msm=False)
+                ResBlock.Input(in_channel=channel, out_channel=channel, has_msm=has_msm)
             )
         )
         self.layers = nn.Sequential(*layers)
@@ -851,16 +851,16 @@ class FAM(nn.Module):
 
 
 class ConvIR(nn.Module):
-    def __init__(self, num_res=16):
+    def __init__(self, num_res=4, has_msm=True):
         super(ConvIR, self).__init__()
 
         base_channel = 32
 
         self.Encoder = nn.ModuleList(
             [
-                EBlock(base_channel, num_res),
-                EBlock(base_channel * 2, num_res),
-                EBlock(base_channel * 4, num_res),
+                EBlock(base_channel, num_res, has_msm),
+                EBlock(base_channel * 2, num_res, has_msm),
+                EBlock(base_channel * 4, num_res, has_msm),
             ]
         )
 
@@ -927,9 +927,9 @@ class ConvIR(nn.Module):
 
         self.Decoder = nn.ModuleList(
             [
-                DBlock(base_channel * 4, num_res),
-                DBlock(base_channel * 2, num_res),
-                DBlock(base_channel, num_res),
+                DBlock(base_channel * 4, num_res, has_msm),
+                DBlock(base_channel * 2, num_res, has_msm),
+                DBlock(base_channel, num_res, has_msm),
             ]
         )
 
@@ -1026,5 +1026,12 @@ class ConvIR(nn.Module):
         return outputs
 
 
-def build_net():
-    return ConvIR()
+def build_net(type: str = "S", has_msm = True):
+    num_res_dict = {
+        "S": 4,
+        "M": 8,
+        "L": 16
+    }
+
+    num_res = num_res_dict.get(type.upper()[0], 4)
+    return ConvIR(num_res=num_res, has_msm=has_msm)

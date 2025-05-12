@@ -41,7 +41,8 @@ class TrainArgs(NamedTuple):
 
 
 def valid(model: ConvIR, device: torch.device, args: TrainArgs, ep: int):
-    gopro = valid_dataloader(args.data_dir, batch_size=8, num_workers=0)
+    print(args)
+    gopro = valid_dataloader(args.data_dir, batch_size=4, num_workers=0)
     max_iter = len(gopro)
     model.eval()
     psnr_adder = Adder()

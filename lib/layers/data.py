@@ -8,7 +8,6 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import functional as F
 
 import torchvision.transforms.v2 as v2
-import torchvision.transforms.v2.functional
 from torchvision.io import decode_image, write_png, ImageReadMode
 
 
@@ -58,6 +57,7 @@ def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=Tru
                 v2.RandomHorizontalFlip(p=0.5),
             ]
         )
+
     dataloader = DataLoader(
         DeblurDataset(image_dir, transform=transform),
         batch_size=batch_size,
@@ -69,7 +69,7 @@ def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=Tru
 
 
 def test_dataloader(path: Path, batch_size=1, num_workers=0):
-    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange(), v2.CenterCrop(256)])
+    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange()])#, v2.CenterCrop(256)])
     image_dir = path / "test"
     dataloader = DataLoader(
         DeblurDataset(image_dir, is_test=True, transform=transform),
@@ -83,7 +83,7 @@ def test_dataloader(path: Path, batch_size=1, num_workers=0):
 
 
 def valid_dataloader(path, batch_size=1, num_workers=0):
-    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange(), v2.CenterCrop(256)])
+    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange()])#, v2.CenterCrop(256)])
     dataloader = DataLoader(
         DeblurDataset(path / "train", is_valid=True, transform=transform),
         batch_size=batch_size,
@@ -101,9 +101,9 @@ class DeblurDataset(Dataset):
         if is_test:
             self.image_list.extend(
                 chain(
-                    image_dir.rglob("*.jpeg"),
-                    image_dir.rglob("*.jpg"),
-                    image_dir.rglob("*.png"),
+                    image_dir.rglob("*/blur/*.jpeg"),
+                    image_dir.rglob("*/blur/*.jpg"),
+                    image_dir.rglob("*/blur/*.png"),
                 )
             )
         else:
@@ -112,14 +112,14 @@ class DeblurDataset(Dataset):
                 for dir in dir_list[int(len(dir_list) * 0.7) :]:
                     self.image_list.extend(
                         chain(
-                            dir.rglob("*.jpeg"), dir.rglob("*.jpg"), dir.rglob("*.png")
+                            dir.rglob("blur/*.jpeg"), dir.rglob("blur/*.jpg"), dir.rglob("blur/*.png")
                         )
                     )
             else:
                 for dir in dir_list[: int(len(dir_list) * 0.7)]:
                     self.image_list.extend(
                         chain(
-                            dir.rglob("*.jpeg"), dir.rglob("*.jpg"), dir.rglob("*.png")
+                            dir.rglob("blur/*.jpeg"), dir.rglob("blur/*.jpg"), dir.rglob("blur/*.png")
                         )
                     )
         self._check_image(self.image_list)

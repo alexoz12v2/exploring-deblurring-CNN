@@ -86,8 +86,8 @@ def main(args: list[str]) -> None:
             train_args = TrainArgs(
                 **{k: args.__dict__[k] for k in TrainArgs._fields if k in args.__dict__}
             )
-            model = build_net().to(device)
-            model.compile()
+            model = build_net(type="S").to(device)
+            #model.compile()
             if logging.level_info():
                 logging.info("Train Args: \n%s\n", pformat(train_args._asdict()))
 
@@ -106,7 +106,7 @@ def main(args: list[str]) -> None:
                 model = MultiScaleNet(n_feats=64, n_resblocks=9, is_skip=True).to(device)
                 model.load_state_dict(torch.load(test_args.test_model))
 
-            model.compile()
+            # model.compile()
 
             if logging.level_info():
                 logging.info("Train Args: \n%s\n", pformat(test_args._asdict()))
@@ -121,7 +121,7 @@ def main(args: list[str]) -> None:
             d["save_image"] = args.result_dir is not None
             valid_args = EvalArgs(**d)
             model = build_net().to(device)
-            model.compile()
+            #model.compile()
             valid(model, device, valid_args, 0)
             
         case "wiener":
