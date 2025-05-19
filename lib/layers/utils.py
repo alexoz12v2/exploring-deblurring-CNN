@@ -2,6 +2,8 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
+import os
+
 import torch
 import torch.nn.functional as F
 from torcheval.metrics.functional import peak_signal_noise_ratio
@@ -397,11 +399,23 @@ class TestArgs(NamedTuple):
     save_image: bool
     result_dir: Path
     store_comparison: bool
+    result_name: str
 
 def test(model: ConvIR, device: torch.device, args: TestArgs):
     dataloader = test_dataloader(args.data_dir, batch_size=1, num_workers=0)
     adder = Adder()
     model.eval()
+    
+    # Crea il path dove salvare il json con i risultati
+    res_dict = {"PSNR": -1, "SSIM": -1}
+    if args.result_dir and args.result_name:
+        res_path = Path(os.path.dirname(args.test_model))
+        res_path = res_path.joinpath(args.result_name + ".json")
+    elif args.result_dir:
+        dataset_name = str(args.data_dir).split('\\')[-1]
+        res_path = Path(os.path.dirname(args.test_model))
+        res_path = res_path.joinpath(dataset_name+".json")
+        
 
     with torch.inference_mode():
         psnr_adder = Adder()
@@ -439,6 +453,13 @@ def test(model: ConvIR, device: torch.device, args: TestArgs):
         logging.info("==========================================================")
         logging.info("The average PSNR is %.4f dB", psnr_adder.average())
         logging.info("Average time: %f", adder.average())
+    
+        res_dict['PSNR'] = psnr_adder.average()
+        res_dict['SSIM'] = ssim_adder.compute()
+    
+    if args.result_dir:
+        with open(res_path, mode="w") as bula:
+            json.dump(res_dict, bula)
 
 
 def save_model(model:ConvIR, scheduler:GradualWarmupScheduler, optimizer:torch.optim.Adam, epoch:int, save_path:Path):

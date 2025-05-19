@@ -40,7 +40,7 @@ def main(args: list[str]) -> None:
     train_parser.add_argument('-msd', '--model_save_dir', type=Path, default=Path.home() / ".convir", metavar="<dir>", help="path to directory where model checkpoint will be saved (default: ~/.convir)")
     train_parser.add_argument('-agf', '--accumulate-grad-freq', type=int, default=1, metavar='<n>', help="frequency (in batch indexes) after which the cumulated gradient is transferred to the model")
     train_parser.add_argument('-rd', '--result-dir', type=Path, required=True, metavar='<dir>', help='Directory in which deblurred validation images will be stored')
-    train_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version (s, b, l) of ConvIR to train')
+    train_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version (s, sp, b, l) of ConvIR to train')
     train_parser.add_argument('-l', '--lambda_par', type=float, required=True, metavar='<f>', help='value of the hyperparameter lambda')
 
     # subcommand: test
@@ -48,15 +48,16 @@ def main(args: list[str]) -> None:
     test_parser.add_argument('-tm', '--test_model', type=Path, required=True, metavar="<dir>", help="file containing model checkpoint")
     test_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to test data")
     test_parser.add_argument('-rd', '--result_dir', type=Path, metavar="<dir>", help="if present, path in which the resulting image will be saved")
-    test_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version (s, b, l) of ConvIR to test')
+    test_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version (s, sp, b, l) of ConvIR to test')
     test_parser.add_argument('-sc', '--save_comparison', action='store_true', help='if present togerther with rd, it will also save the difference between the input and the output image')
+    test_parser.add_argument('-rn', '--result_name', type=str, help='if present together with rd, it will save the result in a json with the specified name, by default it uses the dataset\'s name')
 
     # sucommand: validate
     validation_parser = subparsers.add_parser("validate", help="Start validation of a trained model")
     validation_parser.add_argument('-tm', '--test_model', type=Path, required=True, metavar="<dir>", help="file containing model checkpoint")
     validation_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to test data")
     validation_parser.add_argument('-rd', '--result_dir', type=Path, metavar="<dir>", help="if present, path in which the results of the validation will be saved")
-    validation_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version (s, b, l) of ConvIR to validate')
+    validation_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version (s, sp, b, l) of ConvIR to validate')
     validation_parser.add_argument('-b', '--batch_size', type=int, default=1, metavar="<n>", help="batch size for the validation dataloader (for big models it's recommended to leave the default)")
 
     # fmt: on
@@ -88,6 +89,8 @@ def main(args: list[str]) -> None:
             match args.convir_version:
                 case 's':
                     n = 4
+                case 'sp':
+                    n = 6
                 case 'b':
                     n = 8
                 case 'l':
@@ -111,6 +114,8 @@ def main(args: list[str]) -> None:
             match args.convir_version:
                 case 's':
                     n = 4
+                case 'sp':
+                    n = 6
                 case 'b':
                     n = 8
                 case 'l':
@@ -118,7 +123,7 @@ def main(args: list[str]) -> None:
                 case _:
                     parser.exit(1, "Invalid ConvIR version")
             model = build_net(n).to(device)
-            model.load_state_dict(torch.load(test_args.test_model, weights_only=True)["model"])
+            model.load_state_dict(torch.load(test_args.test_model, weights_only=False)["model"])
 
             if logging.level_info():
                 logging.info("Train Args: \n%s\n", pformat(test_args._asdict()))
@@ -133,6 +138,8 @@ def main(args: list[str]) -> None:
             match args.convir_version:
                 case 's':
                     n = 4
+                case 'sp':
+                    n = 6
                 case 'b':
                     n = 8
                 case 'l':

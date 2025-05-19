@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import functional as F
 
 import torchvision.transforms.v2 as v2
-from torchvision.io import decode_image, write_png, ImageReadMode
+from torchvision.io import decode_image, write_png, write_jpeg, ImageReadMode
 
 
 class NormalizeRange(v2.Transform):
@@ -28,7 +28,14 @@ def save_image(image_tensor: torch.Tensor, path: Path):
     if image_tensor.device.type != 'cpu':
         image_tensor = image_tensor.cpu()
 
-    write_png(image_tensor, str(path))
+    format = str(path).split('.')
+
+    if format[-1] == 'png':
+        write_png(image_tensor, str(path), compression_level=3)
+    elif format[-1] == 'jpeg' or format[-1] == 'jpg':
+        write_jpeg(image_tensor, str(path), quality=100)
+    else:
+        print("invalid format: ", format[-1])
 
 
 def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=True):
@@ -38,12 +45,10 @@ def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=Tru
     if use_transform:
         transform = v2.Compose(
             [
+                v2.RandomCrop(256),
+                v2.RandomHorizontalFlip(p=0.5),
                 v2.ToDtype(torch.get_default_dtype()),
                 NormalizeRange(),
-                v2.RandomResizedCrop(256),
-                v2.ColorJitter(),
-                v2.RandomInvert(),
-                v2.RandomHorizontalFlip(p=0.5),
             ]
         )
 
@@ -96,21 +101,20 @@ class DeblurDataset(Dataset):
                 )
             )
         else:
+            # Invece che prendere il primo 85% delle cartelle per validare prende
+            # l'85% dei file
             dir_list = sorted(list(image_dir.iterdir()))
+            for dir in dir_list:
+                self.image_list.extend(
+                    chain(
+                        dir.rglob("blur/*.jpeg"), dir.rglob("blur/*.jpg"), dir.rglob("blur/*.png")
+                    )
+                )
             if is_valid:
-                for dir in dir_list[int(len(dir_list) * 0.95) :]:
-                    self.image_list.extend(
-                        chain(
-                            dir.rglob("blur/*.jpeg"), dir.rglob("blur/*.jpg"), dir.rglob("blur/*.png")
-                        )
-                    )
+                self.image_list = self.image_list[int(len(self.image_list)*0.85) :]
             else:
-                for dir in dir_list[: int(len(dir_list) * 0.85)]:
-                    self.image_list.extend(
-                        chain(
-                            dir.rglob("blur/*.jpeg"), dir.rglob("blur/*.jpg"), dir.rglob("blur/*.png")
-                        )
-                    )
+                self.image_list = self.image_list[: int(len(self.image_list)*0.85)]
+                
         self._check_image(self.image_list)
         self.image_list.sort()
         self.transform = transform
