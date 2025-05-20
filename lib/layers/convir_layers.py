@@ -179,9 +179,12 @@ class ConvIR(nn.Module):
 
         # Convoluzioni prima di CNNBlock
         self.feat_extract = nn.ModuleList([
+            # Encoder
             BasicConv(3, base_channel, kernel_size=3, relu=True, stride=1),
             BasicConv(base_channel, base_channel*2, kernel_size=3, relu=True, stride=2),
             BasicConv(base_channel*2, base_channel*4, kernel_size=3, relu=True, stride=2),
+            
+            # Decoder
             BasicConv(base_channel*4, base_channel*2, kernel_size=4, relu=True, stride=2, transpose=True),
             BasicConv(base_channel*2, base_channel, kernel_size=4, relu=True, stride=2, transpose=True),
             BasicConv(base_channel, 3, kernel_size=3, relu=False, stride=1)

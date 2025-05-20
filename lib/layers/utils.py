@@ -132,7 +132,8 @@ class TrainArgs(NamedTuple):
     save_freq: int = 10
     accumulate_grad_freq: int = 2
     lambda_par: float = 0.1
-    validation_batch_size: int=1
+    validation_batch_size: int = 1
+    freeze_layers: bool = False
 
 def train(model: ConvIR, device: torch.device, args: TrainArgs):
     loss_dict = {"lambda": args.lambda_par, "starting_epoch": 1, "frequency":[], "content":[]}
@@ -162,6 +163,7 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
     scheduler.step()
     epoch = 1
     if args.resume:
+        # Carica stato di modell, scheduler e optimizer
         state = torch.load(args.resume)
         epoch = state["epoch"]
         optimizer.load_state_dict(state["optimizer"])
@@ -170,11 +172,35 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
         logging.info("Resume from %d" % epoch)
         epoch += 1
 
+        # Riprende logging della loss
         if loss_save_path.exists():
             with open(loss_save_path, mode='r') as f:
                 loss_dict = json.load(f)
         else:
             loss_dict["starting_epoch"] = epoch
+            
+        # Congela layer se viene passato l'argomento
+        if args.freeze_layers:
+            # freeze blocchi encoder
+            for p in model.Encoder.parameters():
+                p.requires_grad = False
+            
+            # freeze feat_extract
+            for i in range(3):
+                for p in model.feat_extract[i].parameters():
+                    p.requires_grad = False
+                    
+            # freeze SCM
+            for p in model.SCM1.parameters():
+                p.requires_grad = False
+            for p in model.SCM2.parameters():
+                p.requires_grad = False
+                
+            # freeze FAM
+            for p in model.FAM1.parameters():
+                p.requires_grad = False
+            for p in model.FAM2.parameters():
+                p.requires_grad = False
 
 
     writer = SummaryWriter()

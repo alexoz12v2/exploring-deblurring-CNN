@@ -42,6 +42,8 @@ def main(args: list[str]) -> None:
     train_parser.add_argument('-rd', '--result-dir', type=Path, required=True, metavar='<dir>', help='Directory in which deblurred validation images will be stored')
     train_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version (s, sp, b, l) of ConvIR to train')
     train_parser.add_argument('-l', '--lambda_par', type=float, required=True, metavar='<f>', help='value of the hyperparameter lambda')
+    train_parser.add_argument('-fl', '--freeze_layers', action='store_true', help='if present together with rp it freezes certain layers to fine tune the model, check utils.py to see which layers are being frozen')
+    
 
     # subcommand: test
     test_parser = subparsers.add_parser("test", help="Test a ConvIR net instance")
