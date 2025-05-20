@@ -102,7 +102,7 @@ class BasicConv(nn.Module):
     def forward(self, x):
         return self.main(x)
 
-
+# Blocco convolutivo di base
 class ResBlock(nn.Module):
     def __init__(self, in_channel, out_channel, filter=False):
         super(ResBlock, self).__init__()
@@ -114,7 +114,7 @@ class ResBlock(nn.Module):
     def forward(self, x):
         return self.main(x) + x
 
-
+# Blocchi encoder
 class EBlock(nn.Module):
     def __init__(self, out_channel, num_res=8):
         super(EBlock, self).__init__()
@@ -127,7 +127,7 @@ class EBlock(nn.Module):
     def forward(self, x):
         return self.layers(x)
 
-
+# Blocchi decoder
 class DBlock(nn.Module):
     def __init__(self, channel, num_res=8):
         super(DBlock, self).__init__()
@@ -139,7 +139,7 @@ class DBlock(nn.Module):
     def forward(self, x):
         return self.layers(x)
 
-
+# ConvS nel paper, prepara le immagini degradate più piccole per il merge
 class SCM(nn.Module):
     def __init__(self, out_plane):
         super(SCM, self).__init__()
@@ -155,7 +155,7 @@ class SCM(nn.Module):
         x = self.main(x)
         return x
 
-
+# Fa il merge delle immagini degradate man mano
 class FAM(nn.Module):
     def __init__(self, channel):
         super(FAM, self).__init__()
@@ -177,6 +177,7 @@ class ConvIR(nn.Module):
             EBlock(base_channel*4, num_res),
         ])
 
+        # Convoluzioni prima di CNNBlock
         self.feat_extract = nn.ModuleList([
             BasicConv(3, base_channel, kernel_size=3, relu=True, stride=1),
             BasicConv(base_channel, base_channel*2, kernel_size=3, relu=True, stride=2),
@@ -192,11 +193,13 @@ class ConvIR(nn.Module):
             DBlock(base_channel, num_res)
         ])
 
+        # Convoluzione dopo skip connection lato decoder
         self.Convs = nn.ModuleList([
             BasicConv(base_channel * 4, base_channel * 2, kernel_size=1, relu=True, stride=1),
             BasicConv(base_channel * 2, base_channel, kernel_size=1, relu=True, stride=1),
         ])
 
+        # Convoluzioni trasposte per generare output intermedi
         self.ConvsOut = nn.ModuleList(
             [
                 BasicConv(base_channel * 4, 3, kernel_size=3, relu=False, stride=1),
