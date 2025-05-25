@@ -166,8 +166,7 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
         # Carica stato di modell, scheduler e optimizer
         state = torch.load(args.resume)
         epoch = state["epoch"]
-        optimizer.load_state_dict(state["optimizer"])
-        model.load_state_dict(state["model"])
+        
         scheduler.load_state_dict(state["scheduler"])
         logging.info("Resume from %d" % epoch)
         epoch += 1
@@ -202,6 +201,25 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
             for p in model.FAM2.parameters():
                 p.requires_grad = False
 
+            optimizer = torch.optim.Adam(
+                filter(lambda p: p.requires_grad, model.parameters()), 
+                lr=args.learning_rate, betas=(0.9, 0.999), eps=1e-8
+            )
+
+            scheduler = GradualWarmupScheduler(
+                optimizer,
+                multiplier=1,
+                total_epoch=warmup_epochs,
+                after_scheduler=scheduler_cosine,
+            )
+            scheduler.step()        
+
+        else:
+            optimizer.load_state_dict(state["optimizer"])
+            model.load_state_dict(state["model"])
+
+
+    trainable_params = list(filter(lambda p: p.requires_grad, model.parameters()))
 
     writer = SummaryWriter()
     epoch_pixel_adder = Adder()
@@ -313,7 +331,7 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
 
             # Autograd mixed precision gradient penalty
             scaled_grad_params = torch.autograd.grad(
-                outputs=scaler.scale(loss), inputs=model.parameters(), retain_graph=True
+                outputs=scaler.scale(loss), inputs=trainable_params, retain_graph=True
             )
             inv_scale = 1.0 / scaler.get_scale()
             grad_params = [p * inv_scale for p in scaled_grad_params]
@@ -480,7 +498,7 @@ def test(model: ConvIR, device: torch.device, args: TestArgs):
         logging.info("The average PSNR is %.4f dB", psnr_adder.average())
         logging.info("Average time: %f", adder.average())
     
-        res_dict['PSNR'] = psnr_adder.average()
+        res_dict['PSNR'] = psnr_adder.average().item()
         res_dict['SSIM'] = ssim_adder.compute()
     
     if args.result_dir:

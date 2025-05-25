@@ -77,7 +77,7 @@ def test_dataloader(path: Path, batch_size=1, num_workers=0):
 
 
 def valid_dataloader(path, batch_size=1, num_workers=0):
-    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange()])#, v2.CenterCrop(256)])
+    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange(), v2.CenterCrop(768)])
     dataloader = DataLoader(
         DeblurDataset(path / "train", is_valid=True, transform=transform),
         batch_size=batch_size,
