@@ -459,6 +459,8 @@ def test(model: ConvIR, device: torch.device, args: TestArgs):
         dataset_name = str(args.data_dir).split('\\')[-1]
         res_path = Path(os.path.dirname(args.test_model))
         res_path = res_path.joinpath(dataset_name+".json")
+    else:
+        res_path = os.path.dirname(args.test_model)
         
 
     with torch.inference_mode():
@@ -501,9 +503,9 @@ def test(model: ConvIR, device: torch.device, args: TestArgs):
         res_dict['PSNR'] = psnr_adder.average().item()
         res_dict['SSIM'] = ssim_adder.compute()
     
-    if args.result_dir:
-        with open(res_path, mode="w") as bula:
-            json.dump(res_dict, bula)
+    
+    with open(res_path, mode="w") as bula:
+        json.dump(res_dict, bula)
 
 
 def save_model(model:ConvIR, scheduler:GradualWarmupScheduler, optimizer:torch.optim.Adam, epoch:int, save_path:Path):
