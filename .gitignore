@@ -47,3 +47,9 @@ original/
 *.run.xml
 *.bbl
 *.blg
+*.acn
+*.ist
+*.acr
+*.glg
+*.gls
+*.alg
