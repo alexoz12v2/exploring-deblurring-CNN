@@ -1,0 +1,127 @@
+\documentclass[a4paper,10pt,twocolumn]{article}
+
+% Page margins and layout
+\usepackage[margin=2cm]{geometry}
+\usepackage{multicol}
+\setlength{\columnsep}{0.7cm}
+
+% glossary
+\usepackage[acronym, toc]{glossaries}
+\makeglossary
+\usepackage[backend=bibtex, style=numeric]{biblatex}
+\addbibresource{references.bib}
+
+% Font and encoding
+% \usepackage[utf8]{inputenc} % only pdflatex
+% \usepackage[T1]{fontenc} % only pdflatex
+\usepackage{lmodern}
+
+% Math
+\usepackage{amsmath, amssymb, bm}
+
+% Graphics and plots
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+% Tables
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{caption}
+
+% Lists
+\usepackage{enumitem}
+\setlist{nosep}
+
+% Hyperlinks
+\usepackage[hidelinks]{hyperref}
+
+% Glossary entries
+\newglossaryentry{shift-invariant}{
+    name=shift-invariant,
+    description={Un kernel \`e shift-invariant se e solo se la sua trasformata di Fourier non cambia con la traslazione del contenuto dell'immagine}
+}
+\newglossaryentry{blind-deconvolution}{
+    name=blind-deconvolution,
+    description={Metodo di estrazione di ground-truth image in cui il blur kernel \`e ignoto}
+}
+\newglossaryentry{non-blind-deconvolution}{
+    name=non-blind-deconvolution,
+    description={Metodo di estrazione di ground-truth image in cui il blur kernel \`e noto}
+}
+
+% Title and author
+\title{\textbf{Rete Convoluzionale per Image Deblurring}}
+\author{Gruppo}
+% \date{\today}
+
+\begin{document}
+
+\twocolumn[
+\maketitle
+\begin{abstract}
+    L'obiettivo del progetto \`e l'applicazione di una U-Net Convoluzionale al fine di migliorare la qualit\`a dell'immagine in input rimuovendo il Blur causato dal moto del soggetto acquisito
+    (\textit{Motion Blur}) o causato dalla messa a fuoco dell'obiettivo (\textit{Focus Blur})
+\end{abstract}
+\vspace{1em}
+]
+
+\section{Introduction}\cite{convir}
+
+\section{Theory and Traditional Approach}
+
+Una immagine con Blur \`e modellata matematicamente come convoluzione tra ground-truth image latente e blur kernel, dove si quest'ultimo essere \textit{\gls{shift-invariant}}. In questo caso,
+l'estrazione dell'immagine sharp \`e un problema di \textit{Image Deconvolution}, la quale \`e suddivisa in \textit{\Gls{non-blind-deconvolution}} e \textit{\Gls{blind-deconvolution}}.\par
+Formulazione Matematica:
+
+\begin{math}
+    \bm{b} = \bm{i} * \bm{k} + \bm{n}
+\end{math}
+
+Dove:
+
+\begin{itemize}[topsep=0pt, noitemsep]
+    \item[] $\bm{b}$: Immagine con blur
+    \item[] $\bm{i}$: Immagine \textit{ground-truth} latente
+    \item[] $\bm{k}$: Blur Kernel
+    \item[] $\bm{n}$: Rumore presente nell'immagine per contare imperfezioni causate dall'acquisizione (quantizzazione, saturazione del colore, risposta non linare della camera, ...) (Esempio: rumore gaussiano)
+\end{itemize}
+
+\paragraph*{Non-Blind Deconvolution}
+
+In questa metodologia tradizionale, il blur kernel \`e noto a priori (Esempio: Point Spread Function Gaussiana per Blur senza direzione, Linea con direzione e lunghezza per Blur con direzione).\par
+Uno dei primi metodi utilizzati in questa categoria, implementato come comparazione, \`e la \textit{Wiener Deconvolution}, il cui obiettivo \`e la ricerca di un filtro $\bm{g}$ tale che, tramite
+convoluzione con l'immagine blurred $\bm{b}$. Espresso nel dominio di Fourier:
+
+\begin{align}
+    \hat{\bm{I}} &= \bm{G}\bm{B} \\
+    \bm{G}       &= \frac{|\bm{K}|^2}{|\bm{K}|^2+\frac{1}{\mathrm{SNR}}} \frac{1}{\bm{K}}
+\end{align}
+
+Dove:
+
+\begin{itemize}[topsep=0pt, noitemsep]
+    \item[] $\bm{G}$ e $\bm{K}$: trasformate di Fourier di $\bm{g}$ e $\bm{k}$
+    \item[] $\mathrm{SNR}$: Signal to noise ratio (infinitamente alto se rumore assente)
+\end{itemize}
+
+Un'implementazione di tale metodo di Deblurring si basa su un metodo di ottimizzazione convessa chiamato \textit{Alternating Direction Method of Multipliers} (ADMM)\footnote{\url{https://stanford.edu/class/ee367/reading/lecture6_notes.pdf}}
+
+\paragraph*{Blind Deconvolution}
+
+\section{Model Architecture}
+
+\section{Observations}
+
+\section{Results}
+
+\printglossary[title=Glossary, toctitle=Glossary]
+
+\printbibliography
+
+\end{document}

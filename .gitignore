@@ -38,3 +38,12 @@ runs/
 # stuff
 docs/possibilities.md
 original/
+
+# latex
+*-blx.bib
+*.aux
+*.glo
+*.out
+*.run.xml
+*.bbl
+*.blg
