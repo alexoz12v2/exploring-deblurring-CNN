@@ -1,3 +1,9 @@
+% Compilation commands
+% lualatex paper.tex
+% makeglossaries paper
+% bibtex paper
+% lualatex paper.tex
+
 \documentclass[a4paper,10pt,twocolumn]{article}
 
 % Page margins and layout
@@ -7,7 +13,7 @@
 
 % glossary
 \usepackage[acronym, toc]{glossaries}
-\makeglossary
+\makeglossaries
 \usepackage[backend=bibtex, style=numeric]{biblatex}
 \addbibresource{references.bib}
 
@@ -113,6 +119,9 @@ Dove:
 Un'implementazione di tale metodo di Deblurring si basa su un metodo di ottimizzazione convessa chiamato \textit{Alternating Direction Method of Multipliers} (ADMM)\footnote{\url{https://stanford.edu/class/ee367/reading/lecture6_notes.pdf}}
 
 \paragraph*{Blind Deconvolution}
+
+In questa metodologia, il blur kernel \`e ignoto\footnote{I metodi con neural network rientrano in questa categoria}, dunque parte dell'algoritmo \`e la \textit{PSF estimation}, modellata come
+stima di una stima di densit\`a di probabilit\`a
 
 \section{Model Architecture}
 
