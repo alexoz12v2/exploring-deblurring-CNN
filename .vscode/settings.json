@@ -11,5 +11,22 @@
             ]
         }
     },
-    "python.analysis.languageServerMode": "light"
+    "python.analysis.languageServerMode": "light",
+    "cSpell.language": "it,en",
+    "cSpell.enabledFileTypes": {
+        "tex": true,
+        "plaintext": true
+    },
+    "cSpell.ignoreRegExpList": [
+        "\\\\[a-zA-Z]+(?:\\[[^\\]]*\\])?(?:\\{[^\\}]*\\})?",     // LaTeX commands with args
+        "\\$[^$]*\\$",                                           // Inline math
+        "\\\\\\[[^\\]]*\\\\\\]",                                 // Display math \[...\]
+        "\\\\begin\\{.*?\\}.*?\\\\end\\{.*?\\}",                 // Environments
+        "%.*$",                                                  // Comments
+        "\\\\label\\{[^}]*\\}",
+        "\\\\ref\\{[^}]*\\}",
+        "\\\\cite\\{[^}]*\\}",
+        "\\\\includegraphics\\[[^\\]]*\\]\\{[^}]*\\}"            // Image includes
+    ],
+    "cSpell.allowCompoundWords": true,
 }

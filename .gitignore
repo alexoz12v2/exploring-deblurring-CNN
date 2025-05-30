@@ -53,3 +53,7 @@ original/
 *.glg
 *.gls
 *.alg
+*.fdb_latexmk
+*.latexmkrc
+*.fls
+*.synctex*

@@ -123,7 +123,49 @@ Un'implementazione di tale metodo di Deblurring si basa su un metodo di ottimizz
 In questa metodologia, il blur kernel \`e ignoto\footnote{I metodi con neural network rientrano in questa categoria}, dunque parte dell'algoritmo \`e la \textit{PSF estimation}, modellata come
 stima di una stima di densit\`a di probabilit\`a
 
-\section{Model Architecture}
+\section{Architettura del modello}
+L'architettura utilizzata corrisponde in buona parte a quella illustrata in~\cite{convir}. La rete si basa su di una struttura a U (encoder-decoder convoluzionali), con estrazione delle feature effettuata a risoluzioni multiple (downsampled)
+e con l'aggiunta dei cosiddetti \textit{Multi-Scale Modules} (\textit{MSM}), che hanno l'obiettivo di implementare meccanismi di attenzione di diversa forma (quadrata e rettangolare).
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/architecture_complete.png}
+\caption{Schema generale dell'architettura completa (ConvIR)}
+\label{fig:architecture}
+\end{figure*}
+
+In figura~\ref{fig:architecture} è riportata l'architettura completa. La prima caratteristica interessante è che l'immagine in input viene elaborata non solo alla risoluzione primaria (256x256) generata dal dataloader,
+ma viene ulteriormente sottocampionata (rispettivamente alla metà e a un quarto della risoluzione) e reinserita nella rete come input dei layer successivi.
+L'obiettivo di questa configurazione multi-input multi-output è di analizzare l'immagine degradata secondo diversi livelli di dettaglio, e quindi di individuare pattern e feature più variegati e di diversa intensità.
+
+L'encoder e il decoder hanno una struttura pressoché speculare, con tre skip connection che collegano i due rami, corrispondenti alle tre differenti risoluzioni a cui viene elaborata l'immagine. Come avviene di consueto nelle reti convolutive,
+al ridursi della dimensione del tensore in larghezza e altezza, cresce il numero di canali. La feature extraction passa infatti attraverso i seguenti moduli:
+\begin{enumerate}[label=\textbf{(\alph*)}]
+    \item layer convolutivo semplice (blocco \textit{Conv} in verde in figura);
+    \item \textit{ConvS}, blocco utilizzato solo per le versioni sottocampionate dell'immagine in input: consiste in una sequenza di quattro layer convolutivi che mantengono costanti le dimensioni di larghezza e altezza;
+    \item \textit{CNNBlock}, blocco costituito da una serie di layer convolutivi raggruppati in \textit{n+1} blocchi residuali; nell'ultimo di questi blocchi viene inserito anche il \textit{MSM};
+    \item \textit{MSM} (\textit{Multi-Scale Module}): fonde l'elaborazione di tre moduli \textit{MSA} (\textit{Multi-Scale Attention}), che operano appunto su tre scale dimensionali gradualmente decrescenti.
+            Ogni \textit{MSA} combina di fatto l'output di un \textit{DSA} e un \textit{DRA};
+    \item \textit{DSA} (\textit{Dilated Square Attention}): produce prima una attention map concentrandosi sulle aree quadrate del tensore in input, attraverso layer convolutivi e di pooling,
+            e in seguito la elabora attraverso un filtro passa alto con parametri allenabili che sottrae unicamente la componente continua e tende ad esaltare quelle a più alta frequenza, 
+            tipicamente responsabili del blur;
+    \item \textit{DRA} (\textit{Dilated Rectangle Attention}): modulo analogo al precedente ma focalizzato su pattern di forma rettangolare, combina attention map in senso verticale e orizzontale.
+\end{enumerate}
+La loss function utilizzata corrisponde alla somma pesata di un contributo calcolato nel dominio spaziale (\(\mathcal{L}_1\)) e uno in frequenza (\(\mathcal{L}_{freq}\)), in modo da considerare adeguatamente i diversi apporti dovuti alla presenza del blur:
+\[
+\mathcal{L}_1 = \mathcal{L}_{spatial} = \sum_{i=1}^{3}\frac{1}{P_i} \left\lVert \hat{\mathbf{I}}_i - \mathbf{Y}_i \right\rVert _1,
+\]
+\[
+\mathcal{L}_{freq} = \sum_{i=1}^{3}\frac{1}{S_i} \left\lVert [\mathcal{R}(\hat{\mathbf{I}}_i), \mathcal{I}(\hat{\mathbf{I}}_i)] - [\mathcal{R}(\mathbf{Y}_i), \mathcal{I}(\mathbf{Y}_i)] \right\rVert _1,
+\]
+dove \(i\) indicizza gli output multipli a diverse risoluzioni; \(\hat{\mathbf{I}}\) e \(\mathbf{Y}\) rappresentano rispettivamente l'immagine elaborata dalla rete e il ground truth;
+\(P\) e \(S\) indicano il numero totale di elementi dei tensori presi in considerazione, in modo da avere delle metriche normalizzate;
+gli operatori \(\mathcal{R}()\) e \(\mathcal{I}()\) estraggono rispettivamente la parte reale e immaginaria della FFT operata sull'immagine.\\
+La funzione di costo complessiva è così calcolata:
+\[
+\mathcal{L}_{tot} = \mathcal{L}_{spatial} + \lambda\mathcal{L}_{freq},
+\]
+dove \(\lambda\) è un iperparametro impostato di default a \(0.01\). 
 
 \section{Observations}
 
