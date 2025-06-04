@@ -151,6 +151,11 @@ al ridursi della dimensione del tensore in larghezza e altezza, cresce il numero
             tipicamente responsabili del blur;
     \item \textit{DRA} (\textit{Dilated Rectangle Attention}): modulo analogo al precedente ma focalizzato su pattern di forma rettangolare, combina attention map in senso verticale e orizzontale.
 \end{enumerate}
+
+L'architettura originale proposta in~\cite{convir} è stata utilizzata dagli autori in tre diversi formati: \textit{S (Small)}, \textit{B (Base)} e \textit{L (Large)}, ognuna caratterizzata da un numero variabile di blocchi residuali all'interno di ciascun modulo \textit{CNNBlock}.
+Le configurazioni prevedevano \(n=3\), \(n=7\) e \(n=15\) rispettivamente per le varianti \textit{S}, \textit{B} e \textit{L}. La nostra scelta è ricaduta in una variante intermedia tra la \textit{S} e la \textit{B}, con \(\mathbf{n=6}\) blocchi residuali.
+Abbiamo inoltre modificato il \textit{CNNBlock} rimuovendo completamente il modulo \textit{MSM} al suo interno. In questo modo, il training è risultato molto più rapido ed efficiente con solo una minima perdita di qualità del risultato finale.
+
 La loss function utilizzata corrisponde alla somma pesata di un contributo calcolato nel dominio spaziale (\(\mathcal{L}_1\)) e uno in frequenza (\(\mathcal{L}_{freq}\)), in modo da considerare adeguatamente i diversi apporti dovuti alla presenza del blur:
 \[
 \mathcal{L}_1 = \mathcal{L}_{spatial} = \sum_{i=1}^{3}\frac{1}{P_i} \left\lVert \hat{\mathbf{I}}_i - \mathbf{Y}_i \right\rVert _1,
