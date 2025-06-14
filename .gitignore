@@ -57,3 +57,4 @@ original/
 *.latexmkrc
 *.fls
 *.synctex*
+*.bcf

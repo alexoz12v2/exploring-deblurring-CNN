@@ -1,7 +1,7 @@
 % Compilation commands
 % lualatex paper.tex
 % makeglossaries paper
-% bibtex paper
+% biber paper
 % lualatex paper.tex
 
 \documentclass[a4paper,10pt,twocolumn]{article}
@@ -14,7 +14,7 @@
 % glossary
 \usepackage[acronym, toc]{glossaries}
 \makeglossaries
-\usepackage[backend=bibtex, style=numeric]{biblatex}
+\usepackage[backend=biber, style=ieee]{biblatex}
 \addbibresource{references.bib}
 
 % Font and encoding
@@ -352,6 +352,120 @@ Queste trasformazioni sono volte ad aumentare artificialmente la dimensione del 
   \label{foto_esempio}
 \end{figure*}
 
+% First plot: SSIM and PSNR
+\begin{figure}[ht]
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[
+        width=0.9\linewidth,
+        xlabel={epoch},
+        ylabel={SSIM},
+        xtick distance={400},
+        enlarge x limits=false,
+        enlarge y limits=false,
+        grid=none,
+        thick,
+        axis y line*=left,
+        axis x line*=bottom,
+        legend style={
+          at={(0.97,0.16)},
+          anchor=south east,
+          cells={align=left},
+          font=\scriptsize
+        }
+      ]
+      % SSIM on left y-axis
+      \addplot[blue, thick] table[x index=0, y index=1] {figures/validation_metrics_ssim.txt};
+      \addlegendentry{SSIM}
+    \end{axis}
+
+    % Second axis overlay for PSNR
+    \begin{axis}[
+        width=0.9\linewidth,
+        xlabel={epoch},
+        ylabel={PSNR},
+        xtick=\empty, % don't duplicate xticks
+        yticklabel style={text=red},
+        ylabel style={text=red},
+        axis y line*=right,
+        axis x line=none,
+        grid=none,
+        thick,
+        legend style={
+          at={(0.97, 0.03)},
+          anchor=south east,
+          cells={align=left},
+          font=\scriptsize
+        }
+      ]
+      % PSNR on right y-axis
+      \addplot[red, thick, dashed] table[x index=0, y index=1] {figures/validation_metrics_psnr.txt};
+      \addlegendentry{PSNR}
+    \end{axis}
+  \end{tikzpicture}
+
+  \caption{Metriche: SSIM (a sinista) e PSNR (a destra) su epochs.}
+  \label{fig:ssim_psnr_dual}
+\end{figure}
+
+% Second plot: Content loss and Frequency loss
+\begin{figure}[ht]
+  \centering
+  \begin{tikzpicture}
+    % Left axis: Content loss
+    \begin{axis}[
+        width=0.9\linewidth,
+        xlabel={epoch},
+        ylabel={Content Loss},
+        tick label style={font=\scriptsize},  % Smaller x-axis labels
+        xtick distance={400},
+        %x tick label style={text width = 1.7cm, align = center, rotate = 70, anchor = north east}, % Optional: rotate for dense x values
+        enlarge x limits=false,
+        enlarge y limits=false,
+        grid=major,
+        xmajorgrids=false,
+        ymajorgrids=true,
+        axis y line*=left,
+        axis x line*=bottom,
+        legend style={
+          at={(0.97,0.97)},
+          anchor=south east,
+          cells={align=left},
+          font=\scriptsize
+        }
+      ]
+      \addplot[green!60!black, thick] table[x index=0, y index=1] {figures/loss_content.txt};
+      \addlegendentry{Content Loss}
+    \end{axis}
+
+    % Right axis: Frequency loss
+    \begin{axis}[
+        width=0.9\linewidth,
+        ylabel={Frequency Loss},
+        yticklabel style={text=orange, font=\scriptsize},
+        ylabel style={text=orange},
+        xtick=\empty,
+        axis y line*=right,
+        axis x line=none,
+        grid=none,
+        enlarge x limits=false,
+        enlarge y limits=false,
+        legend style={
+          at={(0.97,0.84)},
+          anchor=south east,
+          cells={align=left},
+          font=\scriptsize
+        }
+      ]
+      \addplot[orange, thick, dashed] table[x index=0, y index=1] {figures/loss_frequency.txt};
+      \addlegendentry{Frequency Loss}
+    \end{axis}
+  \end{tikzpicture}
+
+  \caption{Training losses nelle epochs: Spatial Loss (a sinistra) and Frequency Loss (a destra).}
+  \label{fig:dual_losses}
+\end{figure}
+
 \FloatBarrier
 
 \printglossary[title=Glossary, toctitle=Glossary]
@@ -359,19 +473,3 @@ Queste trasformazioni sono volte ad aumentare artificialmente la dimensione del 
 \printbibliography
 
 \end{document}
-
-% \begin{figure}[h]\begin{mdframed}[
-%       linewidth=1pt,
-%       innertopmargin=6pt,
-%       innerbottommargin=6pt,
-%       innerleftmargin=6pt,
-%       innerrightmargin=6pt
-%       linecolor=black,
-%       nobreak
-%       ]
-%     insertgraphics qua
-%     \vspace{3pt}
-%     \hrule
-%     \vspace{3pt}
-%     \caption{}
-% \end{mdframed}\end{figure}
