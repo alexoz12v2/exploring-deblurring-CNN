@@ -193,75 +193,85 @@ i dataset, nello specifico:
 Dove $i$ indicizza il dataset su cui è stato svolto il test. Questa metrica è stata definita in modo da dare lo stesso peso alle metriche di SSIM e PSNR, oltre che ai due dataset: per ogni dataset si calcolano SSIM e PSNR medio, dopodichè si normalizza
 il valore di PSNR in modo da riportarlo nell'intervallo [0, 1], si calcola la media tra PSNR e SSIM e la si moltiplica per 100, in modo da ottenere dei valori nell'intervallo [0, 100]; ottenuto questo valore quindi lo score è dato dalla media sui dataset.
 
-Inizialmente il training è stato condotto usando GOPRO, ma dal punteggio è emerso come i modelli addestrati su RSBlur ottenessero una performance più bilanciata, mentre invece quelli addestrati su GOPRO tendevano a dare degli ottimi risultati sul test set, ma dei pessimi 
+Inizialmente il training è stato condotto usando GOPRO, ma dal punteggio è emerso come i modelli addestrati su RSBlur ottenessero una performance più bilanciata, mentre invece quelli addestrati su GOPRO tendevano a dare degli ottimi risultati sul test set, ma dei pessimi
 risultati per quello che riguarda RSBlur. Nel corso dell'addestramento è stato provato come dataset anche un misto di RSBlur e GOPRO, con scarsi risultati, e alla fine si è deciso di usare esclusivamente RSBlur.
 
 Il training set utilizzato consiste quindi in un sottoinsieme degli esempi di RSBlur, composto da 2500 immagini per il training set (di cui il 15\% è dedicato alla validazione) e 1000 per il test set. Sono stati prodotti diversi sottoinsiemi di RSBlur (con un numero di immagini
-simile se non uguale a quelli citati in precedenza), compreso un
-otunetto 
+simile se non uguale a quelli citati in precedenza), compreso uno a risoluzione più bassa dell'originale, ottenuto tramite la funzione \texttt{resize(...)}\footnote{\url{https://docs.opencv.org/3.4/da/d54/group__imgproc__transform.html}} di OpenCV.
+La versione finale consiste in un training set di 2755 esempi e un test set di 1000 esempi, ottenuto tramite crop delle immagini originale per riportare tutte le immagini alla stessa dimensione (invece che \texttt{resize} di OpenCV che interpola).
+
+Oltre ai set citati, abbiamo anche usato un set di 32 immagini sfocate, senza versione nitida, scattato da noi, in modo da ottenere un riscontro più pratico e intuitivo (seppur non molto oggettivo). Nella sezione \ref{foto_esempio} si possono trovare i risultati su alcune di queste immagini.
 
 \paragraph{Funzione di Training}
-Alla funzione di costo descritta in precedenza (\ref{eq:total_loss_function}) abbiamo aggiunto un termine di gradient penalty, che appunto disincentivasse una crescita
-eccessiva dei gradienti, consentendo quindi una regolarizzazione più efficace del modello. La penalità è stata calcolata accumulando
-
 Ciascun Forward e Backward pass sono eseguiti, a fine di incrementare le prestazioni, con il formato floating point a 16 bit Brain Float,
 sfruttando il meccanismo di troncamento automatico offerto da Pytorch chiamato \textit{AMP}\footnote{https://docs.pytorch.org/docs/stable/amp.html}.
 Si nota che, in quanto in questo processo si vanno a perdere cifre decimali della mantissa, e dunque i contributi ai vari layer potrebbero risultare nulli,
 la Loss viene scalata prima di applicare il backward pass con un $\mathrm{growth\_factor} = 2.0$
 
+Alla funzione di costo descritta in precedenza (\ref{eq:total_loss_function}) abbiamo aggiunto un termine di gradient penalty, che appunto disincentivasse una crescita
+eccessiva dei gradienti, consentendo quindi una regolarizzazione più efficace del modello. \\
+Il backward pass comprende quindi un primo calcolo dei gradienti, secondo la loss function originale (\ref{eq:total_loss_function}), si ottiene poi la penalità,
+accumulando la norma euclidea di tutti i gradienti appena ricavati, e la si somma alla funzione di costo precedente, infine vengono propagati i gradienti a partire da quest'ultima loss complessiva.
+
 \paragraph{Iperparametri}
 
 Di seguito gli iperparametri utilizzati assieme al valore selezionato a seguito di una esplorazione trial-and-error:
-
-\textbf{Batch Size}
 \begin{itemize}[topsep=0pt, noitemsep]
-  \item[\texttt{D}] Numero di Coppie di immagini, Example e Label, caricate in un ciclo di Stochastic Gradient Descent
-  \item[\texttt{V}] \textbf{Valore}: $8$. Valori maggiori, eg. $12$ tendono a rallentare un ciclo di forward e backward propagation,
-    mentre valori superiori o uguali a $32$ Esauriscono la
-    memoria del GPU device utilizzato per i tests\footnote{RTX 3060, VRAM: 8GB}\\
-\end{itemize}
+  \item \textbf{Batch Size}:
+    \begin{itemize}[topsep=0pt, noitemsep]
+      \item[\texttt{D}] Numero di Coppie di immagini, Example e Label, caricate in un ciclo di Stochastic Gradient Descent
+      \item[\texttt{V}] \textbf{Valore}: $8$. Valori maggiori, eg. $12$ tendono a rallentare un ciclo di forward e backward propagation,
+        mentre valori superiori o uguali a $32$ Esauriscono la
+        memoria del GPU device utilizzato per i tests\footnote{RTX 3060, VRAM: 8GB}\\
+    \end{itemize}
 
-\textbf{Optimizer}\\
-\hspace{1em}L'ottimizzatore utilizzato \`e l'algoritmo di Adam con i seguenti parametri
-\begin{itemize}[topsep=0pt, noitemsep]
-  \item[] $\beta_1 = 0.9$ peso del primo momento
-  \item[] $\beta_2 = 0.999$ peso del secondo momento
-\end{itemize}
+  \item
+    \textbf{Optimizer}: L'ottimizzatore utilizzato \`e l'algoritmo di Adam con i seguenti parametri
+    \begin{itemize}[topsep=0pt, noitemsep]
+      \item[] $\beta_1 = 0.9$ peso del primo momento
+      \item[] $\beta_2 = 0.999$ peso del secondo momento
+    \end{itemize}
 
-\textbf{Learning Rate (Scheduling)}
-\begin{itemize}[topsep=0pt, noitemsep]
-  \item[\texttt{D}] Moltiplicatore determinante Step Size dei parametri a partire dalla loss.
-  \item[\texttt{V}] \textbf{Valore Iniziale}: $10^{-4}$. Circa la schedulazione, tra le strategie di schedulazione considerate,
-    in particolare, \textit{Momentum}, \textit{Warmup}, \textit{Decay}, sono state impiegate la strategia di \textit{Gradual Warmup}
-    per le prime $N - 3$ epoche, seguita da un \textit{Cosine Decay} nelle
-    epoche rimanenti. Si nota che \`e stato evitato l'impiego del momento in quanto superfluo con ottimizzatori a learning
-    rate adattivo.\footnote{Infatti, il calcolo del momento \`e incluso nell'Adam Optimizer}
-\end{itemize}
+  \item
+    \textbf{Learning Rate (Scheduling)}
+    \begin{itemize}[topsep=0pt, noitemsep]
+      \item[\texttt{D}] Moltiplicatore determinante Step Size dei parametri a partire dalla loss.
+      \item[\texttt{V}] \textbf{Valore Iniziale}: $10^{-4}$. Circa la schedulazione, tra le strategie di schedulazione considerate,
+        in particolare, \textit{Momentum}, \textit{Warmup}, \textit{Decay}, sono state impiegate la strategia di \textit{Gradual Warmup}
+        per le prime $N - 3$ epoche, seguita da un \textit{Cosine Decay} nelle
+        epoche rimanenti. Si nota che \`e stato evitato l'impiego del momento in quanto superfluo con ottimizzatori a learning
+        rate adattivo.\footnote{Infatti, il calcolo del momento \`e incluso nell'Adam Optimizer}
+    \end{itemize}
 
-\textbf{Weight Decay}
-\begin{itemize}[topsep=0pt, noitemsep]
-  \item[\texttt{D}] Nell'ambito dell'ottimizzatore Adam implementato da Pytorch, fattore moltiplicativo dei componenti del gradiente da
-  ogni layer.  Quando \`e diverso da zero, ciascun componente \`e moltiplicato per $1 + \mathrm{weight\_decay}$
-  \item[\texttt{V}] $0$
-\end{itemize}
+  \item
+    \textbf{Weight Decay}:
+    \begin{itemize}[topsep=0pt, noitemsep]
+      \item[\texttt{D}] Nell'ambito dell'ottimizzatore Adam implementato da Pytorch, fattore moltiplicativo dei componenti del gradiente da
+        ogni layer.  Quando \`e diverso da zero, ciascun componente \`e moltiplicato per $1 + \mathrm{weight\_decay}$
+      \item[\texttt{V}] $0$
+    \end{itemize}
 
-\textbf{Accumulate Gradient Frequency}
-\begin{itemize}[topsep=0pt, noitemsep]
-  \item[\texttt{D}] Frequenza, in termini di numero di batches processati, di applicazione dei gradienti calcolati dagli ultimi
-  $\mathrm{agf}$ backward passes
-  \item[\texttt{V}] $1$. Valori Maggiori tendono a rendere La curva della Loss instabile
-\end{itemize}
+  \item
+    \textbf{Accumulate Gradient Frequency}:
+    \begin{itemize}[topsep=0pt, noitemsep]
+      \item[\texttt{D}] Frequenza, in termini di numero di batches processati, di applicazione dei gradienti calcolati dagli ultimi
+        $\mathrm{agf}$ backward passes
+      \item[\texttt{V}] $1$. Valori Maggiori tendono a rendere La curva della Loss instabile
+    \end{itemize}
 
-\textbf{$\lambda$}
-\begin{itemize}[topsep=0pt, noitemsep]
-  \item[\texttt{D}] Fattore di peso del contributo della Loss nel dominio di Fourier
-  \item[\texttt{V}] $0.1$
-\end{itemize}
+  \item
+    \textbf{$\lambda$}:
+    \begin{itemize}[topsep=0pt, noitemsep]
+      \item[\texttt{D}] Fattore di peso del contributo della Loss nel dominio di Fourier
+      \item[\texttt{V}] $0.1$
+    \end{itemize}
 
-\textbf{Image Distance Metric}
-\begin{itemize}[topsep=0pt, noitemsep]
-  \item[\texttt{D}] Funzione utilizzata per comparare una coppia di immagini nel calcolo della Loss.
-  \item[\texttt{V}] Norma L1 della differenza (invariata rispetto all'architettura di riferimeento)
+  \item
+    \textbf{Image Distance Metric}:
+    \begin{itemize}[topsep=0pt, noitemsep]
+      \item[\texttt{D}] Funzione utilizzata per comparare una coppia di immagini nel calcolo della Loss.
+      \item[\texttt{V}] Norma L1 della differenza (invariata rispetto all'architettura di riferimeento)
+    \end{itemize}
 \end{itemize}
 
 \paragraph{Data Augmentation}
@@ -339,6 +349,7 @@ Queste trasformazioni sono volte ad aumentare artificialmente la dimensione del 
     \vspace{3pt}
     \caption{roba}
   \end{mdframed}
+  \label{foto_esempio}
 \end{figure*}
 
 \FloatBarrier

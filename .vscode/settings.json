@@ -29,5 +29,6 @@
         "\\\\includegraphics\\[[^\\]]*\\]\\{[^}]*\\}"            // Image includes
     ],
     "cSpell.allowCompoundWords": true,
-    "latex-workshop.formatting.latex": "tex-fmt"
+    "latex-workshop.formatting.latex": "tex-fmt",
+    "latex-workshop.latex.autoBuild.run":"never"
 }
