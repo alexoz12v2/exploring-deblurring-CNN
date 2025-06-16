@@ -37,7 +37,7 @@ def main(args: list[str]) -> None:
     train_parser.add_argument('-vb', '--validation_batch_size', type=int, default=1, metavar='<n>', help="batch size for the validation dataloader (for bigger models it's recommended to leave the default)")
     train_parser.add_argument('-rp', '--resume', type=Path, default=None, metavar="<dir>", help="(optional) path to a model checkpoint to resume training from")
     train_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to training data directory")
-    train_parser.add_argument('-msd', '--model_save_dir', type=Path, default=Path.home() / ".convir", metavar="<dir>", help="path to directory where model checkpoint will be saved (default: ~/.convir)")
+    train_parser.add_argument('-msd', '--model_save_dir', required=True, type=Path, default=Path.home() / ".convir", metavar="<dir>", help="path to directory where model checkpoint will be saved (default: ~/.convir)")
     train_parser.add_argument('-agf', '--accumulate-grad-freq', type=int, default=1, metavar='<n>', help="frequency (in batch indexes) after which the cumulated gradient is transferred to the model")
     train_parser.add_argument('-rd', '--result-dir', type=Path, required=True, metavar='<dir>', help='Directory in which deblurred validation images will be stored')
     train_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version (s, sp, b, l) of ConvIR to train')
@@ -110,7 +110,6 @@ def main(args: list[str]) -> None:
         case "test":
             d = {k: args.__dict__[k] for k in TestArgs._fields if k in args.__dict__}
             d["save_image"] = args.result_dir is not None
-            d["store_comparison"] = args.save_comparison is not None
             test_args = TestArgs(**d)
 
             match args.convir_version:

@@ -162,8 +162,9 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
     )
     scheduler.step()
     epoch = 1
+    
     if args.resume:
-        # Carica stato di modell, scheduler e optimizer
+        # Carica stato di model, scheduler e optimizer
         state = torch.load(args.resume)
         epoch = state["epoch"]
         
@@ -229,6 +230,7 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
     epoch_timer = Timer("m")
     iter_timer = Timer("m")
     best_psnr = -1
+    avg_time = Adder()
 
     logging.info(
         "Autocast Enabled: %d",
@@ -361,7 +363,7 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
 
             if (iter_idx + 1) % args.print_freq == 0:
                 logging.info(
-                    "Time: %7.4f Epoch: %03d Iter: %4d/%4d LR: %.10f Loss content: %7.4f Loss fft: %7.4f",
+                    "Time: %7.4f Epoch: %03d Iter: %4d/%4d LR: %.10f Loss content: %7.4f Loss fft: %7.4f Total Loss: %7.4f",
                     iter_timer.toc(),
                     epoch_idx,
                     iter_idx + 1,
@@ -369,6 +371,7 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
                     scheduler.get_lr()[0],
                     iter_pixel_adder.average(),
                     iter_fft_adder.average(),
+                    iter_pixel_adder.average() + lambda_par*iter_fft_adder.average()
                 )
                 writer.add_scalar(
                     "Pixel Loss",
@@ -397,10 +400,13 @@ def train(model: ConvIR, device: torch.device, args: TrainArgs):
             with open(loss_save_path, mode="w") as f:
                 json.dump(loss_dict, f)
 
+        epoch_time = epoch_timer.toc()
+        avg_time(epoch_time)
         logging.info(
-            "EPOCH: %02d\nElapsed time: %4.2f Epoch Pixel Loss: %7.4f Epoch FFT Loss: %7.4f, Epoch loss: %7.4f",
+            "EPOCH: %02d\nElapsed time: %4.2f, avg time/epoch so far: %4.2f, Epoch Pixel Loss: %7.4f Epoch FFT Loss: %7.4f, Epoch loss: %7.4f",
             epoch_idx,
-            epoch_timer.toc(),
+            epoch_time,
+            avg_time.average(),
             epoch_pixel_adder.average(),
             epoch_fft_adder.average(),
             epoch_loss,
@@ -442,7 +448,7 @@ class TestArgs(NamedTuple):
     data_dir: Path
     save_image: bool
     result_dir: Path
-    store_comparison: bool
+    save_comparison: bool
     result_name: str
 
 def test(model: ConvIR, device: torch.device, args: TestArgs):
@@ -460,7 +466,9 @@ def test(model: ConvIR, device: torch.device, args: TestArgs):
         res_path = Path(os.path.dirname(args.test_model))
         res_path = res_path.joinpath(dataset_name+".json")
     else:
-        res_path = os.path.dirname(args.test_model)
+        dataset_name = str(args.data_dir).split('\\')[-1]
+        res_path = Path(os.path.dirname(args.test_model))
+        res_path = res_path.joinpath(dataset_name + ".json")
         
 
     with torch.inference_mode():
@@ -481,8 +489,8 @@ def test(model: ConvIR, device: torch.device, args: TestArgs):
 
             if args.save_image:
                 save_image(pred_clip.squeeze(0), args.result_dir / name[0])
-                if args.store_comparison:
-                    save_image((torch.abs(pred_clip-input_img)*10).squeeze(0), args.result_dir / f'comparison_{name[0]}')
+                if args.save_comparison:
+                    save_image((torch.abs(pred_clip-input_img)*2).squeeze(0), args.result_dir / f'comparison_{name[0]}')
 
             psnr_adder(
                 peak_signal_noise_ratio(pred_clip.squeeze(0), label_img.squeeze(0))

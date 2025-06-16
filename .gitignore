@@ -37,3 +37,6 @@ runs/
 
 # stuff
 docs/possibilities.md
+commands.ps1
+genera_test.py
+mass_test.ps1
