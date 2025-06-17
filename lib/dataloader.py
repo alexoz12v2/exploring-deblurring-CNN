@@ -1,4 +1,3 @@
-import random
 from itertools import chain
 from pathlib import Path
 
@@ -8,7 +7,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision.transforms import functional as F
 
 import torchvision.transforms.v2 as v2
-from torchvision.io import decode_image, write_png, ImageReadMode
+from torchvision.io import decode_image, write_png, write_jpeg, ImageReadMode
 
 
 class NormalizeRange(v2.Transform):
@@ -21,14 +20,6 @@ class NormalizeRange(v2.Transform):
         return inpt / 255.0
 
 
-test_transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange(), v2.CenterCrop(256)])
-
-
-def open_image(path: Path, device: torch.device, transform: v2.Transform = test_transform) -> torch.Tensor:
-    image = decode_image(path, mode=ImageReadMode.RGB).to(device)
-    return transform(image)
-
-
 def save_image(image_tensor: torch.Tensor, path: Path):
     # must be C x H x W
     if torch.is_floating_point(image_tensor):
@@ -36,7 +27,14 @@ def save_image(image_tensor: torch.Tensor, path: Path):
     if image_tensor.device.type != 'cpu':
         image_tensor = image_tensor.cpu()
 
-    write_png(image_tensor, str(path))
+    format = str(path).split('.')
+
+    if format[-1] == 'png':
+        write_png(image_tensor, str(path), compression_level=3)
+    elif format[-1] == 'jpeg' or format[-1] == 'jpg':
+        write_jpeg(image_tensor, str(path), quality=100)
+    else:
+        print("invalid format: ", format[-1])
 
 
 def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=True):
@@ -46,15 +44,10 @@ def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=Tru
     if use_transform:
         transform = v2.Compose(
             [
-                # Autoaugment paper: https://arxiv.org/pdf/1805.09501
-                v2.AutoAugment(),
+                v2.RandomCrop(256),
+                v2.RandomHorizontalFlip(p=0.5),
                 v2.ToDtype(torch.get_default_dtype()),
                 NormalizeRange(),
-                v2.ScaleJitter(target_size=(256, 256), scale_range=(0.8, 1.2)),
-                v2.RandomResizedCrop(256),
-                v2.ColorJitter(), # a quanto pare modificare il colore distrugge tutto?
-                v2.RandomInvert(),
-                v2.RandomHorizontalFlip(p=0.5),
             ]
         )
 
@@ -69,7 +62,7 @@ def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=Tru
 
 
 def test_dataloader(path: Path, batch_size=1, num_workers=0):
-    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange()])#, v2.CenterCrop(256)])
+    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange()])
     image_dir = path / "test"
     dataloader = DataLoader(
         DeblurDataset(image_dir, is_test=True, transform=transform),
@@ -83,7 +76,7 @@ def test_dataloader(path: Path, batch_size=1, num_workers=0):
 
 
 def valid_dataloader(path, batch_size=1, num_workers=0):
-    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange()])#, v2.CenterCrop(256)])
+    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange(), v2.CenterCrop(768)])
     dataloader = DataLoader(
         DeblurDataset(path / "train", is_valid=True, transform=transform),
         batch_size=batch_size,
@@ -101,27 +94,25 @@ class DeblurDataset(Dataset):
         if is_test:
             self.image_list.extend(
                 chain(
-                    image_dir.rglob("*/blur/*.jpeg"),
-                    image_dir.rglob("*/blur/*.jpg"),
-                    image_dir.rglob("*/blur/*.png"),
+                    image_dir.rglob("blur/*.jpeg"),
+                    image_dir.rglob("blur/*.jpg"),
+                    image_dir.rglob("blur/*.png"),
                 )
             )
         else:
+            # ultimo 15% delle immagini dedicato a validazione
             dir_list = sorted(list(image_dir.iterdir()))
+            for dir in dir_list:
+                self.image_list.extend(
+                    chain(
+                        dir.rglob("blur/*.jpeg"), dir.rglob("blur/*.jpg"), dir.rglob("blur/*.png")
+                    )
+                )
             if is_valid:
-                for dir in dir_list[int(len(dir_list) * 0.7) :]:
-                    self.image_list.extend(
-                        chain(
-                            dir.rglob("blur/*.jpeg"), dir.rglob("blur/*.jpg"), dir.rglob("blur/*.png")
-                        )
-                    )
+                self.image_list = self.image_list[int(len(self.image_list)*0.85) :]
             else:
-                for dir in dir_list[: int(len(dir_list) * 0.7)]:
-                    self.image_list.extend(
-                        chain(
-                            dir.rglob("blur/*.jpeg"), dir.rglob("blur/*.jpg"), dir.rglob("blur/*.png")
-                        )
-                    )
+                self.image_list = self.image_list[: int(len(self.image_list)*0.85)]
+                
         self._check_image(self.image_list)
         self.image_list.sort()
         self.transform = transform
