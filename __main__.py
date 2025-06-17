@@ -10,6 +10,7 @@ from lib.layers import build_net
 from lib.train import train, TrainArgs
 from lib.validation import valid, ValidArgs
 from lib.test import test, TestArgs
+from lib.wiener import *
 
 
 def main(args: list[str]) -> None:
@@ -64,6 +65,13 @@ def main(args: list[str]) -> None:
     validation_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version (s, sp, b, l) of ConvIR to validate')
     validation_parser.add_argument('-b', '--batch_size', type=int, default=1, metavar="<n>", help="batch size for the validation dataloader (for big models it's recommended to leave the default)")
 
+    # subcommand: wienerAdd commentMore actions
+    wiener_parser = subparsers.add_parser("wiener", help="Deblur an image with a traditional image processing algorithm (Wiener Deconvolution)")
+    wiener_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to single image")
+    wiener_parser.add_argument('-rd', '--result_dir', type=Path, required=True, metavar="<dir>", help="path in which original and deblurred image will be saved")
+    wiener_parser.add_argument('--len-px', '-l', type=int, default=0, metavar="<px>", help="length, in number of pixels, of the motion blur")
+    wiener_parser.add_argument('--theta', '-t', type=float, default=0.0, metavar="<rad>", help="direction, in degrees, of the blur. 0 means right, 90 means up")
+
     # fmt: on
 
     logging.info("Start")
@@ -73,7 +81,6 @@ def main(args: list[str]) -> None:
     # os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
     args = parser.parse_args(args)
-    print(args.__dict__)
 
     device = (
         torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
@@ -153,6 +160,27 @@ def main(args: list[str]) -> None:
             model = build_net(n).to(device)
             
             valid(model, device, valid_args, 0)
+
+        case "wiener":
+            res_dir: Path = args.result_dir
+            data_dir: Path = args.data_dir
+            if res_dir is None or (not res_dir.is_dir() and res_dir.exists()):
+                parser.exit(1, "result path should be a directory")
+
+            if data_dir is None or not data_dir.exists() or not data_dir.is_file():
+                parser.exit(1, "data dir should be an existing image path")
+
+            res_dir.mkdir(parents=True, exist_ok=True)
+            input_image = open_image(data_dir, device)
+            result_image = motion_deblur(input_image)
+            save_image(input_image, res_dir / (data_dir.name[:-4] + '_original.png') )
+            save_image(result_image, res_dir / data_dir.name)
+            # Concatenate along width (dim=2)
+            combined = torch.cat([input_image, result_image], dim=2)  # (C, H, W+W)
+
+            # Save combined image
+            combined_path = res_dir / (data_dir.name[:-4] + '_combined.png')
+            save_image(combined, combined_path)
             
 
         case _:

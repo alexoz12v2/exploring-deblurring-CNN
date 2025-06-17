@@ -4,10 +4,6 @@ import torch
 from lib.layers import ConvIR
 from lib.gradual_warmup_scheduler import GradualWarmupScheduler
 
-# Valid -----------------------------------------------------------------------
-
-
-
 # Utils -----------------------------------------------------------------------
 class Adder(object):
     def __init__(self):
