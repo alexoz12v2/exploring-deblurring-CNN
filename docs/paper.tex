@@ -80,7 +80,37 @@
   \vspace{1em}
 ]
 
-\section{Introduction}\cite{convir}
+\section{Introduction}
+
+Il restauro delle immagini è un compito fondamentale della visione artificiale, utile in campi come telerilevamento,
+imaging medico e fotografia. Il compito consiste nel ricostruire un'immagine pulita da una versione degradata,
+un problema noto per essere "mal posto".
+
+Tradizionalmente, si sono usate tecniche basate su caratteristiche manuali, ma oggi il deep learning — in particolare CNN e Transformer —
+ha rivoluzionato l'approccio.
+L'obiettivo di questo lavoro è esplorare la architettura CNN "ConvIR"\cite{convir} capace di eguagliare o superare le prestazioni dei
+modelli Transformer, mantenendo un numero minore di parametri e complessit\`a computazionale minore.
+
+Architettura multi-scala potenziata: ConvIR imita i meccanismi multi-stage dei Transformer all'interno di una classica struttura a U (U-Net),
+gestendo i blur da grossolani a fini.
+
+\textbf{Modulo di attenzione multi-forma (MSA)}: Un nuovo modulo che aggrega informazioni in regioni quadrate e rettangolari,
+usando anche \textit{convoluzioni dilatate} per aumentare il campo ricettivo.
+
+\textbf{Modulazione della frequenza}: A differenza di altri metodi che trasformano le immagini nel dominio delle frequenze (es. Fourier),
+ConvIR regola direttamente l'importanza dei segnali ad alta frequenza tramite pesi di attenzione.
+
+\textbf{Efficienza computazionale}: ConvIR raggiunge prestazioni simili o superiori ai Transformer con meno parametri e FLOPs.
+
+\textbf{Versioni del modello}\cite{convir}: Sono proposte tre varianti (Small, Base, Large), le quali determinano la lunghezza del primo blocco residuale
+all'interno del \textit{CNNBlock}.
+
+\textbf{Note su tecnologie correlate}
+\begin{itemize}[topsep=0pt, noitemsep]
+  \item CNN vs Transformer: I Transformer offrono vantaggi nel cogliere relazioni a lungo raggio ma sono pesanti computazionalmente.
+  \item Moduli di attenzione: Varianti avanzate mirano a focalizzarsi su zone importanti dell'immagine.
+  \item Elaborazione spettrale: ConvIR usa strategie alternative ai trasformatori di Fourier e wavelet, risparmiando tempo computazionale.
+\end{itemize}
 
 \section{Theory and Traditional Approach}
 
@@ -280,8 +310,6 @@ Seguendo il codice originale, abbiamo mantenuto pressoché invariate le trasform
 \begin{itemize}
   \item \texttt{RandomCrop(256)}: Estrae un crop quadrato di lato 256 pixel, rendendo il training estremamente più veloce
   \item \texttt{RandomHorizontalFlip(p=0.5)}: Decide casualmente (con una probabilità del 50\%) se ruotare intorno all'asse verticale il crop ottenuto al passo precedente
-  \item \texttt{ToDtype(torch.get\_default\_dtype())}: Cast degli elementi del tensore a \texttt{torch.float32}
-  \item \texttt{NormalizeRange()}: Normalizza i valori del tensore nell'intervallo [0, 1]
 \end{itemize}
 
 Queste trasformazioni sono volte ad aumentare artificialmente la dimensione del dataset, senza però andare ad alterare l'informazione associata al blur: inizialmente abbiamo provato altre trasformazioni come ad esempio
@@ -389,6 +417,7 @@ Queste trasformazioni sono volte ad aumentare artificialmente la dimensione del 
         ylabel style={text=red},
         axis y line*=right,
         axis x line=none,
+        xmin=0, xmax=2000, % or whatever the full range is
         grid=none,
         thick,
         legend style={
