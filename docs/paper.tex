@@ -186,8 +186,7 @@ al ridursi della dimensione del tensore in larghezza e altezza, cresce il numero
 \end{enumerate}
 
 L'architettura originale proposta in~\cite{convir} è stata utilizzata dagli autori in tre diversi formati: \textit{S (Small)}, \textit{B (Base)} e \textit{L (Large)}, ognuna caratterizzata da un numero variabile di blocchi residuali all'interno di ciascun modulo \textit{CNNBlock}.
-Le configurazioni prevedevano \(n=3\), \(n=7\) e \(n=15\) rispettivamente per le varianti \textit{S}, \textit{B} e \textit{L}. La nostra scelta è ricaduta in una variante intermedia tra la \textit{S} e la \textit{B}, con \(\mathbf{n=6}\) blocchi residuali.
-Abbiamo inoltre modificato il \textit{CNNBlock} rimuovendo completamente il modulo \textit{MSM} al suo interno. In questo modo, il training è risultato molto più rapido ed efficiente con solo una minima perdita di qualità del risultato finale.
+Le configurazioni prevedevano \(n=3\), \(n=7\) e \(n=15\) rispettivamente per le varianti \textit{S}, \textit{B} e \textit{L}.
 
 La loss function utilizzata corrisponde alla somma pesata di un contributo calcolato nel dominio spaziale (\(\mathcal{L}_1\)) e uno in frequenza (\(\mathcal{L}_{freq}\)), in modo da considerare adeguatamente i diversi apporti dovuti alla presenza del blur:
 
@@ -213,7 +212,7 @@ dove \(\lambda\) è un iperparametro impostato di default a \(0.01\).
 Si illustrano di seguito le alterazioni apportate sull'architettura e processo di training, dettagliandone ragione e risultato.
 
 \paragraph{Dataset}
-I dataset usati sono principalmente due: GOPRO e RSBlur.
+I dataset usati sono principalmente due: GOPRO\footnote{\url{https://www.kaggle.com/datasets/lqzmlaq/gopro-large}} e RSBlur\footnote{\url{https://drive.google.com/drive/folders/1sS8_qXvF4KstJtyYN1DDHsqKke8qwgnT}}.
 GOPRO è un dataset creato applicando un motion blur artificiale ai frame di una serie di video girate all'aperto, RSBlur invece usa una speciale fotocamera per creare contemporaneamente
 una versione sfocata e una nitida della stessa immagine.
 
@@ -230,7 +229,7 @@ Il training set utilizzato consiste quindi in un sottoinsieme degli esempi di RS
 simile se non uguale a quelli citati in precedenza), compreso uno a risoluzione più bassa dell'originale, ottenuto tramite la funzione \texttt{resize(...)}\footnote{\url{https://docs.opencv.org/3.4/da/d54/group__imgproc__transform.html}} di OpenCV.
 La versione finale consiste in un training set di 2755 esempi e un test set di 1000 esempi, ottenuto tramite crop delle immagini originale per riportare tutte le immagini alla stessa dimensione (invece che \texttt{resize} di OpenCV che interpola).
 
-Oltre ai set citati, abbiamo anche usato un set di 32 immagini sfocate, senza versione nitida, scattato da noi, in modo da ottenere un riscontro più pratico e intuitivo (seppur non molto oggettivo). Nella sezione \ref{foto_esempio} si possono trovare i risultati su alcune di queste immagini.
+Oltre ai set citati, abbiamo anche usato un set di 32 immagini sfocate, senza versione nitida, scattato da noi, in modo da ottenere un riscontro più pratico e intuitivo (seppur non molto oggettivo). Nella sezione \ref{results} si possono trovare i risultati su alcune di queste immagini.
 
 \paragraph{Funzione di Training}
 Ciascun Forward e Backward pass sono eseguiti, a fine di incrementare le prestazioni, con il formato floating point a 16 bit Brain Float,
@@ -256,7 +255,7 @@ Di seguito gli iperparametri utilizzati assieme al valore selezionato a seguito 
     \end{itemize}
 
   \item
-    \textbf{Optimizer}: L'ottimizzatore utilizzato \`e l'algoritmo di Adam con i seguenti parametri
+    \textbf{Optimizer}: L'ottimizzatore utilizzato \`e l'algoritmo di Adam\cite{kingma2017adammethodstochasticoptimization} con i seguenti parametri
     \begin{itemize}[topsep=0pt, noitemsep]
       \item[] $\beta_1 = 0.9$ peso del primo momento
       \item[] $\beta_2 = 0.999$ peso del secondo momento
@@ -306,18 +305,26 @@ Di seguito gli iperparametri utilizzati assieme al valore selezionato a seguito 
 
 \paragraph{Data Augmentation}
 
-Seguendo il codice originale, abbiamo mantenuto pressoché invariate le trasformazioni usate dagli autori per la data augmentation, ovvero:
+Sono mantenute pressoché invariate le trasformazioni usate dagli autori per la data augmentation, ovvero:
 \begin{itemize}
-  \item \texttt{RandomCrop(256)}: Estrae un crop quadrato di lato 256 pixel, rendendo il training estremamente più veloce
+  \item \texttt{RandomCrop(256)}: Estrae un crop quadrato di lato 256 pixel, al fine di poter allenare la rete su pi\`u porzioni dell'immagine, presentando
+  blur patterns diversi alla rete.
   \item \texttt{RandomHorizontalFlip(p=0.5)}: Decide casualmente (con una probabilità del 50\%) se ruotare intorno all'asse verticale il crop ottenuto al passo precedente
 \end{itemize}
 
-Queste trasformazioni sono volte ad aumentare artificialmente la dimensione del dataset, senza però andare ad alterare l'informazione associata al blur: inizialmente abbiamo provato altre trasformazioni come ad esempio
-\texttt{ColorJitter}, ma è risultato evidente che
+Sono inoltre state introdotte altre trasformazioni alteranti le informazioni sul colore dell'immagine in input, Come \texttt{ColorJitter},
+pi\`u l'AutoAugment\cite{cubuk2019autoaugmentlearningaugmentationpolicies}con policy IMAGENET. La seguente lista di trasformazioni menzionate sono state in seguito rimosse a seguito di riscontro di performance degradata.
+Tale risultato trova giustifica nel fatto che modificare il contenuto dei pixel delle immagine si altera l'informazione associata al blur contenuta nell'immagine.
 
 \paragraph{Alterazioni sull'Architettura}
+Sono stati effettuati diversi tentativi per ottimizzare la struttura architetturale originale in modo da snellire le tempistiche e il carico computazionale per l'addestramento ma mantenendo comunque delle
+prestazioni comparabili e dei risultati sensibili  
+La nostra scelta è ricaduta in definitiva  n na variante intermedia tra la \textit{S} e la \textit{B}, con \(\mathbf{n=6}\) blocchi residuali.
 
-\section{Results}
+Abbiamo inoltre modificato il \textit{CNNBlock} rimuovendo completamente il modulo \textit{MSM} al suo interno. In questo modo, il training è risultato molto più rapido ed efficiente con solo una minima perdita di qualità del risultato finale.
+
+
+\section{Results}\label{results}
 
 \begin{figure*}[t]
   \begin{mdframed}[
