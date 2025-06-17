@@ -6,10 +6,8 @@ from pprint import pformat
 from absl import app, logging
 import torch
 
-from lib.layers import build_net
-from lib.train import train, TrainArgs
-from lib.validation import valid, ValidArgs
-from lib.test import test, TestArgs
+from lib.layers.convir_layers import build_net
+from lib.layers.utils import ValidArgs, TrainArgs, TestArgs, train, test, valid
 
 
 def main(args: list[str]) -> None:
@@ -82,7 +80,6 @@ def main(args: list[str]) -> None:
     # torch.set_default_dtype(torch.bfloat16)
 
     # additional validation (call parser.exit if fails), then construct a namedtuple object and call function
-    print(args)
     match args.command:
         case "train":
             if not args.model_save_dir.exists():

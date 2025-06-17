@@ -1,3 +1,4 @@
+import random
 from itertools import chain
 from pathlib import Path
 
@@ -62,7 +63,7 @@ def train_dataloader(path: Path, batch_size=64, num_workers=0, use_transform=Tru
 
 
 def test_dataloader(path: Path, batch_size=1, num_workers=0):
-    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange()])
+    transform = v2.Compose([v2.ToDtype(torch.get_default_dtype()), NormalizeRange()])#, v2.CenterCrop(256)])
     image_dir = path / "test"
     dataloader = DataLoader(
         DeblurDataset(image_dir, is_test=True, transform=transform),
@@ -100,7 +101,8 @@ class DeblurDataset(Dataset):
                 )
             )
         else:
-            # ultimo 15% delle immagini dedicato a validazione
+            # Invece che prendere il primo 85% delle cartelle per validare prende
+            # l'85% dei file
             dir_list = sorted(list(image_dir.iterdir()))
             for dir in dir_list:
                 self.image_list.extend(
