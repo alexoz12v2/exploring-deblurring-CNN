@@ -3,6 +3,8 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
+import os
+
 import torch
 import torch.nn.functional as F
 from torchvision.transforms.v2.functional import grayscale_to_rgb
@@ -25,24 +27,16 @@ import json
 
 
 # Valid -----------------------------------------------------------------------
-class TrainArgs(NamedTuple):
-    data_dir: Path | str
-    model_save_dir: Path | str
+class ValidArgs(NamedTuple):
+    test_model: Path | str
+    data_dir: Path
     result_dir: Path
-    learning_rate: float = 1e-4
-    batch_size: int = 32
-    num_worker: int = 0
-    num_epoch: int = 50
-    resume: bool = False
-    print_freq: int = 10
-    valid_freq: int = 10
-    save_freq: int = 10
-    accumulate_grad_freq: int = 1
+    batch_size: int
 
 
-def valid(model: ConvIR, device: torch.device, args: TrainArgs, ep: int):
+def valid(model: ConvIR, device: torch.device, args: ValidArgs, ep: int):
     print(args)
-    gopro = valid_dataloader(args.data_dir, batch_size=4, num_workers=0)
+    gopro = valid_dataloader(args.data_dir, batch_size=args.batch_size, num_workers=0)
     max_iter = len(gopro)
     model.eval()
     psnr_adder = Adder()
@@ -126,13 +120,36 @@ def check_lr(optimizer):
 
 
 # Train -----------------------------------------------------------------------
-def train(model: ConvIR, device: torch.device, args: NamedTuple):
+class TrainArgs(NamedTuple):
+    data_dir: Path | str
+    model_save_dir: Path | str
+    result_dir: Path
+    learning_rate: float = 1e-4
+    batch_size: int = 8
+    num_worker: int = 8
+    num_epoch: int = 50
+    resume: bool = False
+    print_freq: int = 10
+    valid_freq: int = 10
+    save_freq: int = 10
+    accumulate_grad_freq: int = 2
+    lambda_par: float = 0.1
+    validation_batch_size: int = 1
+    freeze_layers: bool = False
+
+def train(model: ConvIR, device: torch.device, args: TrainArgs):
+    loss_dict = {"lambda": args.lambda_par, "starting_epoch": 1, "frequency":[], "content":[]}
+    loss_save_path = args.result_dir.joinpath("loss.json")
+
     model.train()
     criterion = torch.nn.L1Loss()
 
     optimizer = torch.optim.Adam(
         model.parameters(), lr=args.learning_rate, betas=(0.9, 0.999), eps=1e-8
     )
+
+    lambda_par = args.lambda_par
+
     dataloader = train_dataloader(args.data_dir, args.batch_size, args.num_worker)
     max_iter = len(dataloader)
     warmup_epochs = 3
@@ -147,13 +164,65 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
     )
     scheduler.step()
     epoch = 1
+    
     if args.resume:
+        # Carica stato di model, scheduler e optimizer
         state = torch.load(args.resume)
         epoch = state["epoch"]
-        optimizer.load_state_dict(state["optimizer"])
-        model.load_state_dict(state["model"])
+        
+        scheduler.load_state_dict(state["scheduler"])
         logging.info("Resume from %d" % epoch)
         epoch += 1
+
+        # Riprende logging della loss
+        if loss_save_path.exists():
+            with open(loss_save_path, mode='r') as f:
+                loss_dict = json.load(f)
+        else:
+            loss_dict["starting_epoch"] = epoch
+            
+        # Congela layer se viene passato l'argomento
+        if args.freeze_layers:
+            # freeze blocchi encoder
+            for p in model.Encoder.parameters():
+                p.requires_grad = False
+            
+            # freeze feat_extract
+            for i in range(3):
+                for p in model.feat_extract[i].parameters():
+                    p.requires_grad = False
+                    
+            # freeze SCM
+            for p in model.SCM1.parameters():
+                p.requires_grad = False
+            for p in model.SCM2.parameters():
+                p.requires_grad = False
+                
+            # freeze FAM
+            for p in model.FAM1.parameters():
+                p.requires_grad = False
+            for p in model.FAM2.parameters():
+                p.requires_grad = False
+
+            optimizer = torch.optim.Adam(
+                filter(lambda p: p.requires_grad, model.parameters()), 
+                lr=args.learning_rate, betas=(0.9, 0.999), eps=1e-8
+            )
+
+            scheduler = GradualWarmupScheduler(
+                optimizer,
+                multiplier=1,
+                total_epoch=warmup_epochs,
+                after_scheduler=scheduler_cosine,
+            )
+            scheduler.step()        
+
+        else:
+            optimizer.load_state_dict(state["optimizer"])
+            model.load_state_dict(state["model"])
+
+
+    trainable_params = list(filter(lambda p: p.requires_grad, model.parameters()))
 
     writer = SummaryWriter()
     epoch_pixel_adder = Adder()
@@ -163,6 +232,7 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
     epoch_timer = Timer("m")
     iter_timer = Timer("m")
     best_psnr = -1
+    avg_time = Adder()
 
     logging.info(
         "Autocast Enabled: %d",
@@ -261,11 +331,11 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
                 loss_content = l1 + l2 + l3
                 loss_fft = f1 + f2 + f3
 
-                loss = loss_content + 0.1 * loss_fft
+                loss = loss_content + lambda_par * loss_fft
 
             # Autograd mixed precision gradient penalty
             scaled_grad_params = torch.autograd.grad(
-                outputs=scaler.scale(loss), inputs=model.parameters(), retain_graph=True
+                outputs=scaler.scale(loss), inputs=trainable_params, retain_graph=True
             )
             inv_scale = 1.0 / scaler.get_scale()
             grad_params = [p * inv_scale for p in scaled_grad_params]
@@ -295,7 +365,7 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
 
             if (iter_idx + 1) % args.print_freq == 0:
                 logging.info(
-                    "Time: %7.4f Epoch: %03d Iter: %4d/%4d LR: %.10f Loss content: %7.4f Loss fft: %7.4f",
+                    "Time: %7.4f Epoch: %03d Iter: %4d/%4d LR: %.10f Loss content: %7.4f Loss fft: %7.4f Total Loss: %7.4f",
                     iter_timer.toc(),
                     epoch_idx,
                     iter_idx + 1,
@@ -303,6 +373,7 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
                     scheduler.get_lr()[0],
                     iter_pixel_adder.average(),
                     iter_fft_adder.average(),
+                    iter_pixel_adder.average() + lambda_par*iter_fft_adder.average()
                 )
                 writer.add_scalar(
                     "Pixel Loss",
@@ -319,116 +390,88 @@ def train(model: ConvIR, device: torch.device, args: NamedTuple):
                 iter_fft_adder.reset()
 
         # back to epoch loop
+        epoch_loss = epoch_pixel_adder.average() + args.lambda_par*epoch_fft_adder.average()
+        loss_dict['content'].append(epoch_pixel_adder.average())
+        loss_dict['frequency'].append(epoch_fft_adder.average())
+
         if epoch_idx % args.save_freq == 0:
             logging.info("Saving model... (save frequency)")
             save_name = args.model_save_dir / f"model_{epoch_idx}.pkl"
-            torch.save(
-                {
-                    "model": model.state_dict(),
-                    "epoch": epoch_idx,
-                    "optimizer": optimizer.state_dict(),
-                },
-                save_name,
-            )
+            save_model(model=model, scheduler=scheduler, optimizer=optimizer, epoch=epoch_idx, save_path=save_name)
 
+            with open(loss_save_path, mode="w") as f:
+                json.dump(loss_dict, f)
+
+        epoch_time = epoch_timer.toc()
+        avg_time(epoch_time)
         logging.info(
-            "EPOCH: %02d\nElapsed time: %4.2f Epoch Pixel Loss: %7.4f Epoch FFT Loss: %7.4f",
+            "EPOCH: %02d\nElapsed time: %4.2f, avg time/epoch so far: %4.2f, Epoch Pixel Loss: %7.4f Epoch FFT Loss: %7.4f, Epoch loss: %7.4f",
             epoch_idx,
-            epoch_timer.toc(),
+            epoch_time,
+            avg_time.average(),
             epoch_pixel_adder.average(),
             epoch_fft_adder.average(),
+            epoch_loss,
         )
+
         epoch_fft_adder.reset()
         epoch_pixel_adder.reset()
         scheduler.step()
 
         if epoch_idx % args.valid_freq == 0:
-            val_gopro = valid(model, device, args, epoch_idx)
+            val_args = ValidArgs(
+                test_model=args.model_save_dir / f"model_{epoch_idx}.pkl",
+                data_dir=args.data_dir,
+                batch_size=args.validation_batch_size,
+                result_dir=args.result_dir
+            )
+            
+            val_gopro = valid(model, device, val_args, epoch_idx)
             logging.info(
                 "%03d epoch \n Average GOPRO PSNR %.2f dB", epoch_idx, val_gopro
             )
             writer.add_scalar("PSNR_GOPRO", val_gopro, epoch_idx)
             if val_gopro >= best_psnr:
                 logging.info("Saving model... (best validation so far)")
-                torch.save(
-                    {
-                        "model": model.state_dict(),
-                        "epoch": epoch_idx,
-                        "optimizer": optimizer.state_dict(),
-                    }, 
-                    args.model_save_dir / "Best.pkl",
-                )
+                save_model(model=model, scheduler=scheduler, optimizer=optimizer, epoch=epoch_idx, save_path=args.model_save_dir / "Best.pkl")
 
     logging.info("Saving model... (end of training)")
     save_name = args.model_save_dir / "Final.pkl"
-    torch.save(
-        {
-            "model": model.state_dict(),
-            "epoch": epoch_idx,
-            "optimizer": optimizer.state_dict(),
-        }, 
-        save_name,
-    )
+    save_model(model=model, scheduler=scheduler, optimizer=optimizer, epoch=epoch_idx, save_path=save_name)
+    with open(loss_save_path, mode="w") as f:
+        json.dump(loss_dict, f)
+
+    
 
 
 # Eval ------------------------------------------------------------------------
-class EvalArgs(NamedTuple):
+class TestArgs(NamedTuple):
     test_model: Path
     data_dir: Path
     save_image: bool
     result_dir: Path
+    save_comparison: bool
+    result_name: str
 
-
-def test_multiscale(model: ConvIR, device: torch.device, args: EvalArgs):
+def test(model: ConvIR, device: torch.device, args: TestArgs):
     dataloader = test_dataloader(args.data_dir, batch_size=1, num_workers=0)
     adder = Adder()
     model.eval()
-
-    with torch.inference_mode():
-        psnr_adder = Adder()
-        ssim_adder = SSIM(device=device, data_range=1.0)
-        for iter_idx, data in enumerate(dataloader):
-            input_img, label_img, name = data
-
-            input_img = input_img.to(device)
-            input_img_2 = v2.functional.resize(input_img, [input_img.shape[2] // 2, input_img.shape[3] // 2])
-            input_img_3 = v2.functional.resize(input_img, [input_img.shape[2] // 4, input_img.shape[3] // 4])
-
-            label_img = label_img.to(device)
-            tm = time.time()
-
-            pred = model((input_img, input_img_2, input_img_3))[0]
-
-            elapsed = time.time() - tm
-            adder(elapsed)
-
-            pred_clip = torch.clamp(pred, 0, 1)
-
-            if args.save_image:
-                save_image(pred_clip.squeeze(0), args.result_dir / name[0])
-                save_image(label_img.squeeze(0), args.result_dir / f'original_{name[0]}')
-
-            psnr_adder(
-                peak_signal_noise_ratio(pred_clip.squeeze(0), label_img.squeeze(0))
-            )
-            ssim_adder.update((pred_clip, label_img))
-            logging.info(
-                "%d iter avg PSNR so far: %.4f avg SSIM so far: %.4f time: %f",
-                iter_idx + 1,
-                psnr_adder.average(),
-                ssim_adder.compute(),
-                elapsed,
-            )
-
-        logging.info("==========================================================")
-        logging.info("The average PSNR is %.4f dB", psnr_adder.average())
-        logging.info("Average time: %f", adder.average())
-
-
-def test(model: ConvIR, device: torch.device, args: EvalArgs):
-    dataloader = test_dataloader(args.data_dir, batch_size=1, num_workers=0)
-    adder = Adder()
-    model.eval()
+    
+    # Crea il path dove salvare il json con i risultati
+    res_dict = {"PSNR": -1, "SSIM": -1}
+    if args.result_dir and args.result_name:
+        res_path = Path(os.path.dirname(args.test_model))
+        res_path = res_path.joinpath(args.result_name + ".json")
+    elif args.result_dir:
+        dataset_name = str(args.data_dir).split('\\')[-1]
+        res_path = Path(os.path.dirname(args.test_model))
+        res_path = res_path.joinpath(dataset_name+".json")
+    else:
+        dataset_name = str(args.data_dir).split('\\')[-1]
+        res_path = Path(os.path.dirname(args.test_model))
+        res_path = res_path.joinpath(dataset_name + ".json")
+        
 
     with torch.inference_mode():
         psnr_adder = Adder()
@@ -448,7 +491,8 @@ def test(model: ConvIR, device: torch.device, args: EvalArgs):
 
             if args.save_image:
                 save_image(pred_clip.squeeze(0), args.result_dir / name[0])
-                save_image(label_img.squeeze(0), args.result_dir / f'original_{name[0]}')
+                if args.save_comparison:
+                    save_image((torch.abs(pred_clip-input_img)*2).squeeze(0), args.result_dir / f'comparison_{name[0]}')
 
             psnr_adder(
                 peak_signal_noise_ratio(pred_clip.squeeze(0), label_img.squeeze(0))
@@ -465,56 +509,22 @@ def test(model: ConvIR, device: torch.device, args: EvalArgs):
         logging.info("==========================================================")
         logging.info("The average PSNR is %.4f dB", psnr_adder.average())
         logging.info("Average time: %f", adder.average())
+    
+        res_dict['PSNR'] = psnr_adder.average().item()
+        res_dict['SSIM'] = ssim_adder.compute()
+    
+    
+    with open(res_path, mode="w") as bula:
+        json.dump(res_dict, bula)
 
-# Human like performance:
-def motion_deblur(image_tensor: torch.Tensor, length: int = 0, angle: float = 0.0):
-    import numpy as np
-    from numpy.fft import fft2, ifft2
-    from scipy.signal.windows import gaussian
-    def wiener_filter(img, kernel, K):
-        kernel /= np.sum(kernel)
-        dummy = np.copy(img)
-        dummy = fft2(dummy)
-        kernel = fft2(kernel, s = img.shape)
-        kernel = np.conj(kernel) / (np.abs(kernel) ** 2 + K)
-        dummy = dummy * kernel
-        dummy = np.abs(ifft2(dummy))
-        return dummy
 
-    def gaussian_kernel(kernel_size = 3):
-        h = gaussian(kernel_size, kernel_size / 3).reshape(kernel_size, 1)
-        h = np.dot(h, h.transpose())
-        h /= np.sum(h)
-        return h
-
-    def motion_blur_kernel(length, angle, size):
-        import cv2
-        kernel = np.zeros((size, size), dtype=np.float32)
-        center = size // 2
-        # draw line in middle of kernel
-        pt1 = (center - length // 2, center)
-        pt2 = (center + length // 2, center)
-        kernel = cv2.line(kernel, pt1, pt2, 1, thickness=1)
-        # rotate kernel
-        rot_mat = cv2.getRotationMatrix2D((center, center), angle, 1.0)
-        kernel = cv2.warpAffine(kernel, rot_mat, (size, size))
-        kernel /= kernel.sum()
-        return kernel
-
-    image_np = image_tensor.cpu().permute(2,1,0).numpy()
-    if length > 0:
-        # ensure it's odd and fits motion
-        kernel_size = max(3, int(2 * round(length) + 1))
-        kernel = motion_blur_kernel(length, angle, kernel_size)
-    else:
-        kernel = gaussian_kernel(3)
-
-    filtered_channels = []
-    for c in range(3):
-        channel = image_np[:, :, c]
-        filtered = wiener_filter(channel, kernel, K = 0.006)
-        filtered_channels.append(filtered)
-
-    result_np = np.stack(filtered_channels, axis=0)
-    result_tensor = torch.from_numpy(result_np).to(image_tensor.device).clamp(0.0, 1.0).permute(0, 2, 1)
-    return result_tensor
+def save_model(model:ConvIR, scheduler:GradualWarmupScheduler, optimizer:torch.optim.Adam, epoch:int, save_path:Path):
+    torch.save(
+        {
+            "epoch": epoch,
+            "model": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "scheduler": scheduler.state_dict(),
+        }, 
+        save_path,
+    )
