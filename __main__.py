@@ -39,11 +39,11 @@ def main(args: list[str]) -> None:
     train_parser.add_argument('-vn', '--valid_freq', type=int, default=25, metavar="<n>", help="frequency (in epochs) to run validation")
     train_parser.add_argument('-vb', '--validation_batch_size', type=int, default=1, metavar='<n>', help="batch size for the validation dataloader (for bigger models it's recommended to leave the default)")
     train_parser.add_argument('-rp', '--resume', type=Path, default=None, metavar="<dir>", help="(optional) path to a model checkpoint to resume training from")
-    train_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to training data directory")
+    train_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to test data, path must be a directory containing a 'test' subdirectory which, in turn, must contain the subdirectories 'blur' and 'sharp', with the blurred and sharp version of the images respectively, corresponding images must also have the same name")
     train_parser.add_argument('-msd', '--model_save_dir', required=True, type=Path, default=Path.home() / ".convir", metavar="<dir>", help="path to directory where model checkpoint will be saved (default: ~/.convir)")
     train_parser.add_argument('-agf', '--accumulate-grad-freq', type=int, default=1, metavar='<n>', help="frequency (in batch indexes) after which the cumulated gradient is transferred to the model")
     train_parser.add_argument('-rd', '--result-dir', type=Path, required=True, metavar='<dir>', help='Directory in which deblurred validation images will be stored')
-    train_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version (s, sp, b, l) of ConvIR to train')
+    train_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version between s, sp (ours), b and l of ConvIR to train')
     train_parser.add_argument('-l', '--lambda_par', type=float, required=True, metavar='<f>', help='value of the hyperparameter lambda')
     train_parser.add_argument('-fl', '--freeze_layers', action='store_true', help='if present together with rp it freezes certain layers to fine tune the model, check utils.py to see which layers are being frozen')
     
@@ -51,7 +51,7 @@ def main(args: list[str]) -> None:
     # subcommand: test
     test_parser = subparsers.add_parser("test", help="Test a ConvIR net instance")
     test_parser.add_argument('-tm', '--test_model', type=Path, required=True, metavar="<dir>", help="file containing model checkpoint")
-    test_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to test data")
+    test_parser.add_argument('-d', '--data_dir', type=Path, required=True, metavar="<dir>", help="path to test data, path must be a directory containing a 'test' subdirectory which, in turn, must contain the subdirectories 'blur' and 'sharp', with the blurred and sharp version of the images respectively, corresponding images must also have the same name")
     test_parser.add_argument('-rd', '--result_dir', type=Path, metavar="<dir>", help="if present, path in which the resulting image will be saved")
     test_parser.add_argument('-cv', '--convir_version', type=str, required=True, metavar='<c>', help='which version (s, sp, b, l) of ConvIR to test')
     test_parser.add_argument('-sc', '--save_comparison', action='store_true', help='if present togerther with rd, it will also save the difference between the input and the output image')

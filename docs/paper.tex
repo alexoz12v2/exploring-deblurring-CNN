@@ -371,7 +371,6 @@ Di seguito gli iperparametri utilizzati assieme al valore selezionato a seguito 
             ylabel={Loss},
             tick label style={font=\scriptsize},  % Smaller x-axis labels
             xtick distance={400},
-            %x tick label style={text width = 1.7cm, align = center, rotate = 70, anchor = north east}, % Optional: rotate for dense x values
             enlarge x limits=false,
             enlarge y limits=false,
             grid=major,
@@ -418,7 +417,7 @@ possibilità di scomparsa dei gradienti.
 
 \paragraph{Possibili casi critici}
 Nel corso degli esperimenti sono state trovate due criticità: la rete, infatti, tende a lavorare peggio con immagini ad alta risoluzione (e.g. $4080\times3060$), lasciandole molto più invariate rispetto alla stessa immagine a risoluzione più bassa come ad esempio $1280\times720$ o $1920\times1080$.
- Il motivo preciso per cui questo accada non è stato individuato, ma sospettiamo che abbia a che vedere con la mancanza dei meccanismi di attenzione implementati nel paper originale: i kernel convolutivi usati infatti potrebbero coprire aree troppo piccole dell'immagine 
+ Il motivo per cui questo accada non è stato individuato, ma sospettiamo che abbia a che vedere con la mancanza dei meccanismi di attenzione implementati nel paper originale: i kernel convolutivi usati infatti potrebbero coprire aree troppo piccole dell'immagine 
  per poter rilevare certe zone sfocate che in immagini ad alta risoluzione sono composte da molti pixel.
 
 \section{Risultati e conclusioni finali}\label{results}
