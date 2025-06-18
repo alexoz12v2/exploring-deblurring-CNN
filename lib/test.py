@@ -5,6 +5,7 @@ from typing import NamedTuple
 import os
 
 import torch
+import torch.nn.functional as f
 from torcheval.metrics.functional import peak_signal_noise_ratio
 from absl import logging
 
@@ -52,12 +53,26 @@ def test(model: ConvIR, device: torch.device, args: TestArgs):
     with torch.inference_mode():
         psnr_adder = Adder()
         ssim_adder = SSIM(device=device, data_range=1.0)
+        factor = 32
         for iter_idx, data in enumerate(dataloader):
             input_img, label_img, name = data
 
             input_img = input_img.to(device)
             label_img = label_img.to(device)
             tm = time.time()
+            
+            # pad input and target images
+            h, w = input_img.shape[2], input_img.shape[3]
+            H, W = ((h+factor)//factor)*factor, ((w+factor)//factor*factor)
+            padh = H-h if h%factor!=0 else 0
+            padw = W-w if w%factor!=0 else 0
+            input_img = f.pad(input_img, (0, padw, 0, padh), 'reflect')
+
+            h, w = label_img.shape[2], label_img.shape[3]
+            H, W = ((h+factor)//factor)*factor, ((w+factor)//factor*factor)
+            padh = H-h if h%factor!=0 else 0
+            padw = W-w if w%factor!=0 else 0
+            label_img = f.pad(label_img, (0, padw, 0, padh), 'reflect')
 
             pred = model(input_img)[2]
             elapsed = time.time() - tm
