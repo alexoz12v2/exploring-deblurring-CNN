@@ -6,8 +6,6 @@
 
 \documentclass[a4paper,10pt,twocolumn]{article}
 
-\usepackage{floatrow}
-
 % Page margins and layout
 \usepackage[margin=2cm]{geometry}
 \usepackage{multicol}
@@ -70,7 +68,7 @@
 % Title and author
 \title{\textbf{Rete Convoluzionale per Image Deblurring}}
 \author{Gruppo}
- \date{\today}
+\date{\today}
 
 \begin{document}
 
@@ -239,7 +237,7 @@ sfruttando il meccanismo di troncamento automatico offerto da Pytorch chiamato \
 Si nota che, in quanto in questo processo si vanno a perdere cifre decimali della mantissa, e dunque i contributi ai vari layer potrebbero risultare nulli,
 la Loss viene scalata prima di applicare il backward pass con un $\mathrm{growth\_factor} = 2.0$
 
-Per quanto riguarda la funzione di costo, abbiamo utilizzato quella descritta in precedenza (\ref{eq:total_loss_function}), 
+Per quanto riguarda la funzione di costo, abbiamo utilizzato quella descritta in precedenza (\ref{eq:total_loss_function}),
 ma abbiamo aggiunto un termine di gradient penalty, in modo da disincentivare una crescita eccessiva dei gradienti, consentendo quindi una regolarizzazione più efficace del modello. \\
 Il backward pass comprende quindi un primo calcolo dei gradienti, secondo la loss function originale (\ref{eq:total_loss_function}), si ottiene poi la penalità,
 accumulando la norma euclidea di tutti i gradienti appena ricavati, e la si somma alla funzione di costo precedente, infine vengono propagati i gradienti a partire da quest'ultima loss complessiva.
@@ -307,10 +305,94 @@ Di seguito gli iperparametri utilizzati assieme al valore selezionato a seguito 
 
 \paragraph{Data Augmentation}
 
+\begin{figure*}[tb!]
+  \centering
+  \subfloat[\centering Metriche di validazione: SSIM (a sinistra) e PSNR (a destra) su epochs.]{
+    \resizebox{0.4\linewidth}{!}{
+      \begin{tikzpicture}
+        \begin{axis}[
+            width=0.9\linewidth,
+            xlabel={epoch},
+            ylabel={SSIM},
+            xtick distance={400},
+            enlarge x limits=false,
+            enlarge y limits=false,
+            grid=none,
+            thick,
+            axis y line*=left,
+            axis x line*=bottom,
+            legend style={
+              at={(0.97,0.16)},
+              anchor=south east,
+              cells={align=left},
+              font=\scriptsize
+            }
+          ]
+          % SSIM on left y-axis
+          \addplot[blue, thick] table[x index=0, y index=1] {figures/validation_metrics_ssim.txt};
+          \addlegendentry{SSIM}
+        \end{axis}
+
+        % Second axis overlay for PSNR
+        \begin{axis}[
+            width=0.9\linewidth,
+            xlabel={epoch},
+            ylabel={PSNR},
+            xtick=\empty, % don't duplicate xticks
+            yticklabel style={text=red},
+            ylabel style={text=red},
+            axis y line*=right,
+            axis x line=none,
+            xmin=0, xmax=2000, % or whatever the full range is
+            grid=none,
+            thick,
+            legend style={
+              at={(0.97, 0.03)},
+              anchor=south east,
+              cells={align=left},
+              font=\scriptsize
+            }
+          ]
+          % PSNR on right y-axis
+          \addplot[red, thick, dashed] table[x index=0, y index=1] {figures/validation_metrics_psnr.txt};
+          \addlegendentry{PSNR}
+        \end{axis}
+      \end{tikzpicture}
+    }
+  }
+  \hfill
+  \subfloat[\centering Training loss nelle epoche]{
+    \resizebox{0.4\linewidth}{!}{
+      \begin{tikzpicture}[scale = 0.4]
+        % Left axis: Content loss
+        \begin{axis}[
+            width=0.9\linewidth,
+            xlabel={epoch},
+            ylabel={Loss},
+            tick label style={font=\scriptsize},  % Smaller x-axis labels
+            xtick distance={400},
+            %x tick label style={text width = 1.7cm, align = center, rotate = 70, anchor = north east}, % Optional: rotate for dense x values
+            enlarge x limits=false,
+            enlarge y limits=false,
+            grid=major,
+            xmajorgrids=false,
+            ymajorgrids=true,
+            axis y line*=left,
+            axis x line*=bottom,
+          ]
+          \addplot[blue!60!black, thick] table[x index=0, y index=1] {figures/out.txt};
+        \end{axis}
+      \end{tikzpicture}
+    }
+  }
+
+  \label{fig:metrics}
+\end{figure*}
+
 Sono mantenute pressoché invariate le trasformazioni usate dagli autori per la data augmentation, ovvero:
 \begin{itemize}
   \item \texttt{RandomCrop(256)}: Estrae un crop quadrato di lato 256 pixel, al fine di poter allenare la rete su pi\`u porzioni dell'immagine, presentando
-  blur pattern diversi alla rete.
+    blur pattern diversi alla rete.
   \item \texttt{RandomHorizontalFlip(p=0.5)}: Decide casualmente (con una probabilità del 50\%) se ruotare intorno all'asse verticale il crop ottenuto al passo precedente.
 \end{itemize}
 
@@ -322,108 +404,21 @@ Tale risultato trova giustifica nel fatto che modificare il contenuto dei pixel 
 Sono stati effettuati diversi tentativi per ottimizzare la struttura architetturale originale in modo da snellire le tempistiche e il carico computazionale per l'addestramento ma mantenendo comunque delle
 prestazioni comparabili, per quanto inferiori, all'originale e dei risultati visivamente apprezzabili.
 
-Abbiamo ad esempio provato a sostituire, all'interno del ramo di decoding, l'operazione di deconvoluzione (o convoluzione trasposta) con quella di pixel shuffle (introdotta in~\cite{shi2016realtimesingleimagevideo}), 
+Abbiamo ad esempio provato a sostituire, all'interno del ramo di decoding, l'operazione di deconvoluzione (o convoluzione trasposta) con quella di pixel shuffle (introdotta in~\cite{shi2016realtimesingleimagevideo}),
 sulla carta più efficiente per operazioni di upsampling; in realtà, questo tentativo non ha portato miglioramenti significativi, per cui non abbiamo mantenuto questa modifica. \\
-In definitiva, abbiamo deciso di intervenire sul modulo \textit{CNNBlock}, impostando numero di blocchi residuali pari a \(\mathbf{n=6}\) in ciascun modulo, generando una sorta di variante intermedia tra la \textit{S} 
+In definitiva, abbiamo deciso di intervenire sul modulo \textit{CNNBlock}, impostando numero di blocchi residuali pari a \(\mathbf{n=6}\) in ciascun modulo, generando una sorta di variante intermedia tra la \textit{S}
 e la \textit{B}. Abbiamo inoltre rimosso completamente il modulo \textit{MSM} al suo interno: sebbene si trattasse di uno dei componenti caratterizzanti dell'architettura di partenza, dati i meccanismi di attenzione implementati,
 abbiamo osservato e valutato, anche grazie agli studi in~\cite{convir}, che in sostanza andava ad appesantire considerevolmente il modello introducendo dei miglioramenti marginali e difficilmente percepibili,
 soprattutto considerati gli obiettivi fissati per questo progetto.
 
-Un'ultima variazione ha previsto l'introduzione della funzione di attivazione GELU (Gaussian Error Linear Unit) al posto della ReLU per tutti i layer convolutivi, che conferisce una convergenza migliore e riduce la 
+Un'ultima variazione ha previsto l'introduzione della funzione di attivazione GELU (Gaussian Error Linear Unit) al posto della ReLU per tutti i layer convolutivi, che conferisce una convergenza migliore e riduce la
 possibilità di scomparsa dei gradienti.
 
 \section{Risultati e conclusioni finali}\label{results}
 
-\begin{figure*}[t]
-  \centering
-  
-  \begin{floatrow}
+\FloatBarrier
 
-  \subfloat[\centering Metriche di validazione: SSIM (a sinistra) e PSNR (a destra) su epochs.]{
-    \begin{tikzpicture}[scale = 0.4]
-    \begin{axis}[
-        width=0.9\linewidth,
-        xlabel={epoch},
-        ylabel={SSIM},
-        xtick distance={400},
-        enlarge x limits=false,
-        enlarge y limits=false,
-        grid=none,
-        thick,
-        axis y line*=left,
-        axis x line*=bottom,
-        legend style={
-          at={(0.97,0.16)},
-          anchor=south east,
-          cells={align=left},
-          font=\scriptsize
-        }
-      ]
-      % SSIM on left y-axis
-      \addplot[blue, thick] table[x index=0, y index=1] {figures/validation_metrics_ssim.txt};
-      \addlegendentry{SSIM}
-    \end{axis}
-
-    % Second axis overlay for PSNR
-    \begin{axis}[
-        width=0.9\linewidth,
-        xlabel={epoch},
-        ylabel={PSNR},
-        xtick=\empty, % don't duplicate xticks
-        yticklabel style={text=red},
-        ylabel style={text=red},
-        axis y line*=right,
-        axis x line=none,
-        xmin=0, xmax=2000, % or whatever the full range is
-        grid=none,
-        thick,
-        legend style={
-          at={(0.97, 0.03)},
-          anchor=south east,
-          cells={align=left},
-          font=\scriptsize
-        }
-      ]
-      % PSNR on right y-axis
-      \addplot[red, thick, dashed] table[x index=0, y index=1] {figures/validation_metrics_psnr.txt};
-      \addlegendentry{PSNR}
-    \end{axis}
-    \end{tikzpicture}
-  }
-
-  \subfloat[\centering Training loss nelle epoche]{
-    \begin{tikzpicture}[scale = 0.4]
-    % Left axis: Content loss
-    \begin{axis}[
-        width=0.9\linewidth,
-        xlabel={epoch},
-        ylabel={Loss},
-        tick label style={font=\scriptsize},  % Smaller x-axis labels
-        xtick distance={400},
-        %x tick label style={text width = 1.7cm, align = center, rotate = 70, anchor = north east}, % Optional: rotate for dense x values
-        enlarge x limits=false,
-        enlarge y limits=false,
-        grid=major,
-        xmajorgrids=false,
-        ymajorgrids=true,
-        axis y line*=left,
-        axis x line*=bottom,
-      ]
-      \addplot[blue!60!black, thick] table[x index=0, y index=1] {figures/out.txt};
-      \end{axis}
-    \end{tikzpicture}
-  }
-
-  \end{floatrow}
-  
-  \label{fig:metrics}
-\end{figure*}
-
-
-
-
-
-\begin{figure*}[t]
+\begin{figure*}[p]
   \begin{mdframed}[
       linewidth=1pt,
       innertopmargin=6pt,
@@ -481,7 +476,7 @@ possibilità di scomparsa dei gradienti.
     \vspace{3pt}
     \caption{
       Una serie di immagini prodotte dal modello: nella prima colonna è presente l'immmagine originale (sfocata), nella seconda l'output della rete,
-      e nella terza il residuo che viene sommato all'immagine originale per ottenere la versione nitida, 
+      e nella terza il residuo che viene sommato all'immagine originale per ottenere la versione nitida,
       il cui valore dei pixel è stato raddoppiato in modo da rendere più visibili le zone interessate dalla correzione dell'immagine
     }
   \end{mdframed}
