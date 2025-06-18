@@ -21,6 +21,7 @@
 % \usepackage[utf8]{inputenc} % only pdflatex
 % \usepackage[T1]{fontenc} % only pdflatex
 \usepackage{lmodern}
+\usepackage[italian]{babel}
 
 % Math
 \usepackage{amsmath, amssymb, bm}
@@ -67,7 +68,7 @@
 % Title and author
 \title{\textbf{Rete Convoluzionale per Image Deblurring}}
 \author{Gruppo}
-% \date{\today}
+ \date{\today}
 
 \begin{document}
 
@@ -75,12 +76,12 @@
   \maketitle
   \begin{abstract}
     L'obiettivo del progetto \`e l'applicazione di una U-Net Convoluzionale al fine di migliorare la qualit\`a dell'immagine in input rimuovendo il Blur causato dal moto del soggetto acquisito
-    (\textit{Motion Blur}) o causato dalla messa a fuoco dell'obiettivo (\textit{Focus Blur})
+    (\textit{Motion Blur}) o causato dalla messa a fuoco dell'obiettivo (\textit{Focus Blur}).
   \end{abstract}
   \vspace{1em}
 ]
 
-\section{Introduction}
+\section{Introduzione}
 
 Il restauro delle immagini è un compito fondamentale della visione artificiale, utile in campi come telerilevamento,
 imaging medico e fotografia. Il compito consiste nel ricostruire un'immagine pulita da una versione degradata,
@@ -90,8 +91,9 @@ Tradizionalmente, si sono usate tecniche basate su caratteristiche manuali, ma o
 ha rivoluzionato l'approccio.
 L'obiettivo di questo lavoro è esplorare la architettura CNN "ConvIR"\cite{convir} capace di eguagliare o superare le prestazioni dei
 modelli Transformer, mantenendo un numero minore di parametri e complessit\`a computazionale minore.
+Di seguito le caratteristiche principali della rete in questione:
 
-Architettura multi-scala potenziata: ConvIR imita i meccanismi multi-stage dei Transformer all'interno di una classica struttura a U (U-Net),
+\textbf{Architettura multi-scala potenziata}: \mbox{ConvIR} imita i meccanismi multi-stage dei Transformer all'interno di una classica struttura a U (U-Net),
 gestendo i blur da grossolani a fini.
 
 \textbf{Modulo di attenzione multi-forma (MSA)}: Un nuovo modulo che aggrega informazioni in regioni quadrate e rettangolari,
@@ -112,9 +114,9 @@ all'interno del \textit{CNNBlock}.
   \item Elaborazione spettrale: ConvIR usa strategie alternative ai trasformatori di Fourier e wavelet, risparmiando tempo computazionale.
 \end{itemize}
 
-\section{Theory and Traditional Approach}
+\section{Modello teorico e approcci tradizionali}
 
-Una immagine con Blur \`e modellata matematicamente come convoluzione tra ground-truth image latente e blur kernel, dove si quest'ultimo essere \textit{\gls{shift-invariant}}. In questo caso,
+Una immagine con blur \`e modellata matematicamente come convoluzione tra immagine ground-truth latente e kernel di blur, dove quest'ultimo si assume essere \textit{\gls{shift-invariant}}. In questo caso,
 l'estrazione dell'immagine sharp \`e un problema di \textit{Image Deconvolution}, la quale \`e suddivisa in \textit{\Gls{non-blind-deconvolution}} e \textit{\Gls{blind-deconvolution}}.\par
 Formulazione Matematica:
 
@@ -154,11 +156,11 @@ Un'implementazione di tale metodo di Deblurring si basa su un metodo di ottimizz
 \paragraph*{Blind Deconvolution}
 
 In questa metodologia, il blur kernel \`e ignoto\footnote{I metodi con neural network rientrano in questa categoria}, dunque parte dell'algoritmo \`e la \textit{PSF estimation}, modellata come
-stima di una stima di densit\`a di probabilit\`a
+stima di una stima di densit\`a di probabilit\`a.
 
 \section{Architettura del modello}
-L'architettura utilizzata corrisponde in buona parte a quella illustrata in~\cite{convir}. La rete si basa su di una struttura a U (encoder-decoder convoluzionali), con estrazione delle feature effettuata a risoluzioni multiple (downsampled)
-e con l'aggiunta dei cosiddetti \textit{Multi-Scale Modules} (\textit{MSM}), che hanno l'obiettivo di implementare meccanismi di attenzione di diversa forma (quadrata e rettangolare).
+L'architettura utilizzata in~\cite{convir} si basa, come detto, sulla struttura tipica di una U-Net con encoder-decoder convoluzionali, ed estrazione delle feature effettuata a risoluzioni multiple, quindi effettuando downsampling all'immagine di partenza.
+Di rilevante importanza in tal senso è il ruolo dei \textit{Multi-Scale Modules} (\textit{MSM}), che hanno l'obiettivo di implementare meccanismi di attenzione di diversa forma (quadrata e rettangolare) e dimensione.
 
 \begin{figure*}[t]
   \centering
@@ -167,8 +169,8 @@ e con l'aggiunta dei cosiddetti \textit{Multi-Scale Modules} (\textit{MSM}), che
   \label{fig:architecture}
 \end{figure*}
 
-In figura~\ref{fig:architecture} è riportata l'architettura completa. La prima caratteristica interessante è che l'immagine in input viene elaborata non solo alla risoluzione primaria (256x256) generata dal dataloader,
-ma viene ulteriormente sottocampionata (rispettivamente alla metà e a un quarto della risoluzione) e reinserita nella rete come input dei layer successivi.
+In figura~\ref{fig:architecture} è riportata l'architettura completa. La prima caratteristica interessante è che l'immagine in input viene elaborata non solo alla risoluzione primaria (256x256)
+proveniente dal dataloader, ma viene ulteriormente sottocampionata (rispettivamente alla metà e a un quarto della risoluzione) e reinserita nella rete come input combinato dei layer successivi.
 L'obiettivo di questa configurazione multi-input multi-output è di analizzare l'immagine degradata secondo diversi livelli di dettaglio, e quindi di individuare pattern e feature più variegati e di diversa intensità.
 
 L'encoder e il decoder hanno una struttura pressoché speculare, con tre skip connection che collegano i due rami, corrispondenti alle tre differenti risoluzioni a cui viene elaborata l'immagine. Come avviene di consueto nelle reti convolutive,
@@ -177,12 +179,12 @@ al ridursi della dimensione del tensore in larghezza e altezza, cresce il numero
   \item layer convolutivo semplice (blocco \textit{Conv} in verde in figura);
   \item \textit{ConvS}, blocco utilizzato solo per le versioni sottocampionate dell'immagine in input: consiste in una sequenza di quattro layer convolutivi che mantengono costanti le dimensioni di larghezza e altezza;
   \item \textit{CNNBlock}, blocco costituito da una serie di layer convolutivi raggruppati in \textit{n+1} blocchi residuali; nell'ultimo di questi blocchi viene inserito anche il \textit{MSM};
-  \item \textit{MSM} (\textit{Multi-Scale Module}): fonde l'elaborazione di tre moduli \textit{MSA} (\textit{Multi-Scale Attention}), che operano appunto su tre scale dimensionali gradualmente decrescenti.
+  \item \textit{MSM (Multi-Scale Module)}: fonde l'elaborazione di tre moduli \textit{MSA} (\textit{Multi-Scale Attention}), che operano appunto su tre scale dimensionali gradualmente decrescenti.
     Ogni \textit{MSA} combina di fatto l'output di un \textit{DSA} e un \textit{DRA};
-  \item \textit{DSA} (\textit{Dilated Square Attention}): produce prima una attention map concentrandosi sulle aree quadrate del tensore in input, attraverso layer convolutivi e di pooling,
+  \item \textit{DSA (Dilated Square Attention)}: produce prima una attention map concentrandosi sulle aree quadrate del tensore in input, attraverso layer convolutivi e di pooling,
     e in seguito la elabora attraverso un filtro passa alto con parametri allenabili che sottrae unicamente la componente continua e tende ad esaltare quelle a più alta frequenza,
     tipicamente responsabili del blur;
-  \item \textit{DRA} (\textit{Dilated Rectangle Attention}): modulo analogo al precedente ma focalizzato su pattern di forma rettangolare, combina attention map in senso verticale e orizzontale.
+  \item \textit{DRA (Dilated Rectangle Attention)}: modulo analogo al precedente ma focalizzato su pattern di forma rettangolare, combina attention map in senso verticale e orizzontale.
 \end{enumerate}
 
 L'architettura originale proposta in~\cite{convir} è stata utilizzata dagli autori in tre diversi formati: \textit{S (Small)}, \textit{B (Base)} e \textit{L (Large)}, ognuna caratterizzata da un numero variabile di blocchi residuali all'interno di ciascun modulo \textit{CNNBlock}.
@@ -207,17 +209,16 @@ La funzione di costo complessiva è così calcolata:
 
 dove \(\lambda\) è un iperparametro impostato di default a \(0.01\).
 
-\section{Observations}
+\section{Sperimentazioni}
 
-Si illustrano di seguito le alterazioni apportate sull'architettura e processo di training, dettagliandone ragione e risultato.
+Si illustrano di seguito i dettagli del setup sperimentale adottato, includendo le alterazioni apportate sull'architettura originale e al processo di training, indicandone motivazioni e risultati riscontrati.
 
 \paragraph{Dataset}
 I dataset usati sono principalmente due: GOPRO\footnote{\url{https://www.kaggle.com/datasets/lqzmlaq/gopro-large}} e RSBlur\footnote{\url{https://drive.google.com/drive/folders/1sS8_qXvF4KstJtyYN1DDHsqKke8qwgnT}}.
-GOPRO è un dataset creato applicando un motion blur artificiale ai frame di una serie di video girate all'aperto, RSBlur invece usa una speciale fotocamera per creare contemporaneamente
+GOPRO è un dataset creato applicando un motion blur artificiale ai frame di una serie di video girati all'aperto, RSBlur invece usa una speciale fotocamera per creare contemporaneamente
 una versione sfocata e una nitida della stessa immagine.
 
-Per cercare di ottenere un risultato migliore possibile, abbiamo condotto dei test su entrambi i dataset che risultassero in una singola metrica che tenesse conto della performance su entrambi
-i dataset, nello specifico:
+Per cercare di ottenere un risultato migliore possibile, abbiamo condotto dei test su entrambi i dataset che risultassero in una singola metrica di performance complessiva, nello specifico:
 \[ \text{Score} = \frac{1}{2}\sum_{i=1}^2 100 \cdot avg(\frac{PSNR_i}{33}, SSIM_i)\]
 Dove $i$ indicizza il dataset su cui è stato svolto il test. Questa metrica è stata definita in modo da dare lo stesso peso alle metriche di SSIM e PSNR, oltre che ai due dataset: per ogni dataset si calcolano SSIM e PSNR medio, dopodichè si normalizza
 il valore di PSNR in modo da riportarlo nell'intervallo [0, 1], si calcola la media tra PSNR e SSIM e la si moltiplica per 100, in modo da ottenere dei valori nell'intervallo [0, 100]; ottenuto questo valore quindi lo score è dato dalla media sui dataset.
@@ -237,21 +238,21 @@ sfruttando il meccanismo di troncamento automatico offerto da Pytorch chiamato \
 Si nota che, in quanto in questo processo si vanno a perdere cifre decimali della mantissa, e dunque i contributi ai vari layer potrebbero risultare nulli,
 la Loss viene scalata prima di applicare il backward pass con un $\mathrm{growth\_factor} = 2.0$
 
-Alla funzione di costo descritta in precedenza (\ref{eq:total_loss_function}) abbiamo aggiunto un termine di gradient penalty, che appunto disincentivasse una crescita
-eccessiva dei gradienti, consentendo quindi una regolarizzazione più efficace del modello. \\
+Per quanto riguarda la funzione di costo, abbiamo utilizzato quella descritta in precedenza (\ref{eq:total_loss_function}), 
+ma abbiamo aggiunto un termine di gradient penalty, in modo da disincentivare una crescita eccessiva dei gradienti, consentendo quindi una regolarizzazione più efficace del modello. \\
 Il backward pass comprende quindi un primo calcolo dei gradienti, secondo la loss function originale (\ref{eq:total_loss_function}), si ottiene poi la penalità,
 accumulando la norma euclidea di tutti i gradienti appena ricavati, e la si somma alla funzione di costo precedente, infine vengono propagati i gradienti a partire da quest'ultima loss complessiva.
 
 \paragraph{Iperparametri}
 
 Di seguito gli iperparametri utilizzati assieme al valore selezionato a seguito di una esplorazione trial-and-error:
-\begin{itemize}[topsep=0pt, noitemsep]
+\begin{itemize}[topsep=5pt, itemsep=7pt]
   \item \textbf{Batch Size}:
     \begin{itemize}[topsep=0pt, noitemsep]
       \item[\texttt{D}] Numero di Coppie di immagini, Example e Label, caricate in un ciclo di Stochastic Gradient Descent
       \item[\texttt{V}] \textbf{Valore}: $8$. Valori maggiori, eg. $12$ tendono a rallentare un ciclo di forward e backward propagation,
         mentre valori superiori o uguali a $32$ Esauriscono la
-        memoria del GPU device utilizzato per i tests\footnote{RTX 3060, VRAM: 8GB}\\
+        memoria del GPU device utilizzato per i test\footnote{RTX 3060, VRAM: 8GB}
     \end{itemize}
 
   \item
@@ -283,8 +284,8 @@ Di seguito gli iperparametri utilizzati assieme al valore selezionato a seguito 
   \item
     \textbf{Accumulate Gradient Frequency}:
     \begin{itemize}[topsep=0pt, noitemsep]
-      \item[\texttt{D}] Frequenza, in termini di numero di batches processati, di applicazione dei gradienti calcolati dagli ultimi
-        $\mathrm{agf}$ backward passes
+      \item[\texttt{D}] Frequenza, in termini di numero di batch processati, di applicazione dei gradienti calcolati dagli ultimi
+        $\mathrm{agf}$ backward pass
       \item[\texttt{V}] $1$. Valori Maggiori tendono a rendere La curva della Loss instabile
     \end{itemize}
 
@@ -308,29 +309,29 @@ Di seguito gli iperparametri utilizzati assieme al valore selezionato a seguito 
 Sono mantenute pressoché invariate le trasformazioni usate dagli autori per la data augmentation, ovvero:
 \begin{itemize}
   \item \texttt{RandomCrop(256)}: Estrae un crop quadrato di lato 256 pixel, al fine di poter allenare la rete su pi\`u porzioni dell'immagine, presentando
-  blur patterns diversi alla rete.
-  \item \texttt{RandomHorizontalFlip(p=0.5)}: Decide casualmente (con una probabilità del 50\%) se ruotare intorno all'asse verticale il crop ottenuto al passo precedente
+  blur pattern diversi alla rete.
+  \item \texttt{RandomHorizontalFlip(p=0.5)}: Decide casualmente (con una probabilità del 50\%) se ruotare intorno all'asse verticale il crop ottenuto al passo precedente.
 \end{itemize}
 
-Sono inoltre state introdotte altre trasformazioni alteranti le informazioni sul colore dell'immagine in input, Come \texttt{ColorJitter},
-pi\`u l'AutoAugment\cite{cubuk2019autoaugmentlearningaugmentationpolicies}con policy IMAGENET. La seguente lista di trasformazioni menzionate sono state in seguito rimosse a seguito di riscontro di performance degradata.
-Tale risultato trova giustifica nel fatto che modificare il contenuto dei pixel delle immagine si altera l'informazione associata al blur contenuta nell'immagine.
+Sono inoltre state introdotte altre trasformazioni alteranti le informazioni sul colore dell'immagine in input, come \texttt{ColorJitter},
+e \texttt{AutoAugment} (\cite{cubuk2019autoaugmentlearningaugmentationpolicies}) con policy IMAGENET. Queste trasformazioni menzionate sono state in seguito rimosse a seguito di riscontro di performance degradata.
+Tale risultato trova giustifica nel fatto che modificare il contenuto dei pixel delle immagini si altera l'informazione associata al blur contenuto in esse.
 
-\paragraph{Alterazioni sull'Architettura}
+\paragraph{Alterazioni sull'architettura}
 Sono stati effettuati diversi tentativi per ottimizzare la struttura architetturale originale in modo da snellire le tempistiche e il carico computazionale per l'addestramento ma mantenendo comunque delle
 prestazioni comparabili, per quanto inferiori, all'originale e dei risultati visivamente apprezzabili.
 
 Abbiamo ad esempio provato a sostituire, all'interno del ramo di decoding, l'operazione di deconvoluzione (o convoluzione trasposta) con quella di pixel shuffle (introdotta in~\cite{shi2016realtimesingleimagevideo}), 
 sulla carta più efficiente per operazioni di upsampling; in realtà, questo tentativo non ha portato miglioramenti significativi, per cui non abbiamo mantenuto questa modifica. \\
 In definitiva, abbiamo deciso di intervenire sul modulo \textit{CNNBlock}, impostando numero di blocchi residuali pari a \(\mathbf{n=6}\) in ciascun modulo, generando una sorta di variante intermedia tra la \textit{S} 
-e la \textit{B}. Abbiamo inoltre rimosso completamente il modulo \textit{MSM} al suo interno: si tratta di uno dei componenti caratterizzanti dell'architettura di partenza, dati i meccanismi di attenzione implementati,
-ma abbiamo osservato e valutato, anche grazie agli studi in~\cite{convir}, che in sostanza andava ad appesantire considerevolmente il modello introducendo dei miglioramenti marginali e difficilmente percepibili,
+e la \textit{B}. Abbiamo inoltre rimosso completamente il modulo \textit{MSM} al suo interno: sebbene si trattasse di uno dei componenti caratterizzanti dell'architettura di partenza, dati i meccanismi di attenzione implementati,
+abbiamo osservato e valutato, anche grazie agli studi in~\cite{convir}, che in sostanza andava ad appesantire considerevolmente il modello introducendo dei miglioramenti marginali e difficilmente percepibili,
 soprattutto considerati gli obiettivi fissati per questo progetto.
 
 Un'ultima variazione ha previsto l'introduzione della funzione di attivazione GELU (Gaussian Error Linear Unit) al posto della ReLU per tutti i layer convolutivi, che conferisce una convergenza migliore e riduce la 
 possibilità di scomparsa dei gradienti.
 
-\section{Results}\label{results}
+\section{Risultati e conclusioni finali}\label{results}
 
 \begin{figure*}[t]
   \begin{mdframed}[
@@ -504,13 +505,13 @@ possibilità di scomparsa dei gradienti.
     \end{axis}
   \end{tikzpicture}
 
-  \caption{Training losses nelle epochs: Spatial Loss (a sinistra) and Frequency Loss (a destra).}
+  \caption{Training loss nelle epoche: Spatial Loss (a sinistra) and Frequency Loss (a destra).}
   \label{fig:dual_losses}
 \end{figure}
 
 \FloatBarrier
 
-\printglossary[title=Glossary, toctitle=Glossary]
+\printglossary[title=Glossario, toctitle=Glossario]
 
 \printbibliography
 
