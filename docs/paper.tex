@@ -231,6 +231,12 @@ ma la versione finale consiste in un training set di 2755 esempi e un test set d
 
 Oltre ai set citati, abbiamo anche usato un set di 32 immagini sfocate, senza versione nitida, scattato da noi, in modo da ottenere un riscontro più pratico e intuitivo (seppur non molto oggettivo). Nella sezione \ref{results} si possono trovare i risultati su alcune di queste immagini.
 
+Ciascun dataset è stato suddiviso in \textbf{train/validation/test} secondo le seguenti modalità:
+\begin{itemize}
+    \item Il \textbf{test set} è separato nativamente nel dataset scaricato, poiché il \textit{dataloader} si aspetta la presenza delle due cartelle \texttt{train/} e \texttt{test/} nella directory fornita al programma.
+    \item Il \textbf{validation set} è stato ottenuto estraendo il \textbf{15\% finale} delle immagini presenti nella cartella \texttt{train/}, ordinate in modo \textit{lessicografico}. Lo split non è casuale, al fine di garantire la \textbf{riproducibilità}.
+\end{itemize}
+
 \paragraph{Funzione di Training}
 Ciascun Forward e Backward pass sono eseguiti, a fine di incrementare le prestazioni, con il formato floating point a 16 bit Brain Float,
 sfruttando il meccanismo di troncamento automatico offerto da Pytorch chiamato \textit{AMP}\footnote{https://docs.pytorch.org/docs/stable/amp.html}.
