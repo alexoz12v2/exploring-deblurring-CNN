@@ -255,7 +255,7 @@ Di seguito gli iperparametri utilizzati assieme al valore selezionato a seguito 
   \item \textbf{Batch Size}:
     \begin{itemize}[topsep=0pt, noitemsep]
       \item[\texttt{D}] Numero di Coppie di immagini, Example e Label, caricate in un ciclo di Stochastic Gradient Descent
-      \item[\texttt{V}] \textbf{Valore}: $8$. Valori maggiori, eg. $12$ tendono a rallentare un ciclo di forward e backward propagation,
+      \item[\texttt{V}] \textbf{Valore}: $8$. Valori maggiori, eg. $12$ tendono a rendere estremamente lento un ciclo di forward e backward propagation,
         mentre valori superiori o uguali a $32$ Esauriscono la
         memoria del GPU device utilizzato per i test\footnote{RTX 3060, VRAM: 8GB}
     \end{itemize}
@@ -275,7 +275,8 @@ Di seguito gli iperparametri utilizzati assieme al valore selezionato a seguito 
         in particolare, \textit{Momentum}, \textit{Warmup}, \textit{Decay}, sono state impiegate la strategia di \textit{Gradual Warmup}
         per le prime $N - 3$ epoche, seguita da un \textit{Cosine Decay} nelle
         epoche rimanenti. Si nota che \`e stato evitato l'impiego del momento in quanto superfluo con ottimizzatori a learning
-        rate adattivo.\footnote{Infatti, il calcolo del momento \`e incluso nell'Adam Optimizer}
+        rate adattivo.\footnote{Infatti, il calcolo del momento \`e incluso nell'Adam Optimizer} Sono stati testati valori più alti, come ad esempio $1.2\cdot 10^{-4}$ e $1.5 \cdot 10^{-4}$, ma questi 
+        risultavano in differenze minime o addirittura a far divergere la loss.
     \end{itemize}
 
   \item
@@ -291,7 +292,7 @@ Di seguito gli iperparametri utilizzati assieme al valore selezionato a seguito 
     \begin{itemize}[topsep=0pt, noitemsep]
       \item[\texttt{D}] Frequenza, in termini di numero di batch processati, di applicazione dei gradienti calcolati dagli ultimi
         $\mathrm{agf}$ backward pass
-      \item[\texttt{V}] $1$. Valori Maggiori tendono a rendere La curva della Loss instabile
+      \item[\texttt{V}] $1$. Valori Maggiori (sono stati testati 2 e 3) tendono a rendere la curva della loss meno stabilmente decrescente
     \end{itemize}
 
   \item
@@ -299,13 +300,6 @@ Di seguito gli iperparametri utilizzati assieme al valore selezionato a seguito 
     \begin{itemize}[topsep=0pt, noitemsep]
       \item[\texttt{D}] Fattore di peso del contributo della Loss nel dominio di Fourier
       \item[\texttt{V}] $0.1$
-    \end{itemize}
-
-  \item
-    \textbf{Image Distance Metric}:
-    \begin{itemize}[topsep=0pt, noitemsep]
-      \item[\texttt{D}] Funzione utilizzata per comparare una coppia di immagini nel calcolo della Loss.
-      \item[\texttt{V}] Norma L1 della differenza (invariata rispetto all'architettura di riferimeento)
     \end{itemize}
 \end{itemize}
 
@@ -372,7 +366,7 @@ Di seguito gli iperparametri utilizzati assieme al valore selezionato a seguito 
       \begin{tikzpicture}[scale = 0.4]
         % Left axis: Content loss
         \begin{axis}[
-            width=0.9\linewidth,
+            width=1.5\linewidth,
             xlabel={epoch},
             ylabel={Loss},
             tick label style={font=\scriptsize},  % Smaller x-axis labels
@@ -422,43 +416,46 @@ soprattutto considerati gli obiettivi fissati per questo progetto.
 Un'ultima variazione ha previsto l'introduzione della funzione di attivazione GELU (Gaussian Error Linear Unit) al posto della ReLU per tutti i layer convolutivi, che conferisce una convergenza migliore e riduce la 
 possibilità di scomparsa dei gradienti.
 
+\paragraph{Possibili casi critici}
+Nel corso degli esperimenti sono state trovate due criticità: la rete, infatti, tende a lavorare peggio con immagini ad alta risoluzione (e.g. $4080\times3060$), lasciandole molto più invariate rispetto alla stessa immagine a risoluzione più bassa come ad esempio $1280\times720$ o $1920\times1080$.
+ Il motivo preciso per cui questo accada non è stato individuato, ma sospettiamo che abbia a che vedere con la mancanza dei meccanismi di attenzione implementati nel paper originale: i kernel convolutivi usati infatti potrebbero coprire aree troppo piccole dell'immagine 
+ per poter rilevare certe zone sfocate che in immagini ad alta risoluzione sono composte da molti pixel.
+
 \section{Risultati e conclusioni finali}\label{results}
 
-Nel presente lavoro, i risultati ottenuti dal modello addestrato sono stati confrontati con quelli della versione originale di ConvIR~\cite{convir}. 
-Il nostro approccio, pur mostrando prestazioni complessivamente inferiori rispetto ai modelli basati su architetture Transformer, si dimostra competitivo in alcuni casi, raggiungendo metriche comparabili (in particolare in termini di SSIM) a fronte di una significativa riduzione della complessità architetturale.
+Nel presente lavoro, i risultati del modello addestrato sono stati confrontati con quelli della versione originale di ConvIR~\cite{convir}. Sebbene le prestazioni siano complessivamente inferiori rispetto ai modelli basati su Transformer, il nostro approccio risulta competitivo in alcuni casi, con metriche comparabili (soprattutto SSIM) e una significativa riduzione della complessità architetturale.
 
-La riduzione del numero di parametri è un aspetto chiave: essa è stata ottenuta intervenendo sul numero di blocchi convoluzionali e rimuovendo
-moduli onerosi come il \textit{Multi-Scale Module}. Inoltre, ulteriori strategie di compressione architetturale potrebbero essere facilmente 
-implementate: tra queste, l'impiego sistematico di convoluzioni $1\times1$ in stile Network-in-Network (NiN), già introdotte in
-GoogLeNet~\cite{szegedy2014goingdeeperconvolutions}, consentirebbe un'ulteriore riduzione della dimensione del modello agendo come colli di bottiglia 
-(bottleneck layer) tra layer convolutivi.
+La riduzione dei parametri è cruciale: ottenuta intervenendo sul numero di blocchi convoluzionali e rimuovendo moduli onerosi come il Multi-Scale Module. Ulteriori strategie di compressione, come l'uso sistematico di convoluzioni $1 \times 1$ in stile NiN (introdotte in GoogLeNet~\cite{szegedy2014goingdeeperconvolutions}), potrebbero ridurre ulteriormente la dimensione del modello, fungendo da bottleneck tra layer convolutivi.
 
-Anche per quanto riguarda l'upscaling all'interno del decoder, l'utilizzo della tecnica di 
-\textit{PixelShuffle}~\cite{zamzam2025pixelshufflersimpleimagetranslation} offre un'alternativa priva di parametri apprendibili alle più costose operazioni di 
-deconvoluzione, e può dunque costituire un elemento utile nella progettazione di modelli leggeri.
+Per l'upscaling nel decoder, l'uso di \textit{PixelShuffle}~\cite{zamzam2025pixelshufflersimpleimagetranslation} rappresenta un'alternativa priva di parametri apprendibili rispetto alle deconvoluzioni, utile per progettare modelli leggeri.
 
-Nel complesso, i risultati ottenuti mostrano un buon compromesso tra efficienza e qualità di output: nonostante una leggera perdita in termini 
-di accuratezza rispetto al modello completo, l'approccio qui proposto offre vantaggi significativi in termini di tempo di addestramento, 
-risorse richieste e velocità di inferenza.
+Nel complesso, i risultati mostrano un buon compromesso tra efficienza e qualità dell'output: nonostante una lieve perdita in accuratezza, l'approccio proposto offre vantaggi in termini di tempo di addestramento, risorse e velocità di inferenza.
 
-Di seguito sono riportati alcuni esempi qualitativi dei risultati del modello: per ciascuna immagine viene mostrata la terna 
-costituita da (1) immagine originale sfocata, (2) output del modello deblurred e (3) residuo stimato dal modello, ovvero il 
-contributo appreso che viene sommato all'immagine sfocata per ottenere la versione nitida. Quest'ultimo è stato amplificato 
-per rendere più visibili le regioni corrette.
+Sono riportati esempi qualitativi con: (1) immagine originale sfocata, (2) output deblurred, (3) residuo applicato (inteso come il modulo della differenza algebrica tra tensori in input e di output), amplificato per evidenziare le correzioni. Inoltre, vengono presentati:
 
-Oltre alle immagini, vengono presentati:
 \begin{itemize}
-\item grafici delle metriche SSIM e PSNR calcolate sui dati di validazione durante il training;
-\item un grafico della funzione di costo (loss) nel tempo, che mostra l'andamento della convergenza;
-\item le tabelle riepilogative dei valori finali delle metriche di performance.
+  \item grafici di SSIM e PSNR sui dati di validazione;
+
+  \item grafico della funzione di costo nel tempo;
+
+  \item tabelle riepilogative delle metriche finali.
 \end{itemize}
 
-Tali risultati confermano la validità dell'approccio proposto, evidenziando la possibilità di ottenere prestazioni visivamente 
-e numericamente soddisfacenti anche con modelli leggeri e meno complessi rispetto a quelli basati su self-attention.
+I risultati confermano la validità dell’approccio, mostrando che anche modelli leggeri e meno complessi possono garantire prestazioni visivamente e numericamente soddisfacenti rispetto a quelli basati su self-attention.
 
 \FloatBarrier
 
-\begin{figure*}[p]
+\begin{figure*}[b!]
+
+  \begin{tabular}{|l|c|c|c|c|c|}
+  \hline
+  \textbf{Model} & \textbf{RSBlur PSNR} & \textbf{RSBlur SSIM} & \textbf{GOPRO PSNR} & \textbf{GOPRO SSIM} & \textbf{\#Parameters} \\
+  \hline
+  ConvIR-L & 34.06 dB & 0.868 & 33.28 dB & 0.963 & 14.83M \\
+  Ours    & 30.95 dB & 0.83 & 26.72 dB & 0.85 & 5.35M \\
+  \hline
+  \end{tabular}
+
   \begin{mdframed}[
       linewidth=1pt,
       innertopmargin=6pt,

@@ -44,11 +44,7 @@ def test(model: ConvIR, device: torch.device, args: TestArgs):
     else:
         dataset_name = str(args.data_dir).split('\\')[-1]
         res_path = Path(os.path.dirname(args.test_model))
-        res_path = res_path.joinpath(dataset_name + ".json")
-
-    npar = sum(p.numel() for p in model.parameters())
-    print("\n\n\nNUMERO PARAMETRI: ", npar, "\n\n\n")
-        
+        res_path = res_path.joinpath(dataset_name + ".json")        
 
     with torch.inference_mode():
         psnr_adder = Adder()
