@@ -6,7 +6,8 @@
 
 \documentclass[a4paper,10pt,twocolumn]{article}
 
-\usepackage{floatrow}
+%\usepackage{floatrow}
+\usepackage{subfig}
 
 % Page margins and layout
 \usepackage[margin=2cm]{geometry}
@@ -318,29 +319,10 @@ Sono inoltre state introdotte altre trasformazioni alteranti le informazioni sul
 e \texttt{AutoAugment} (\cite{cubuk2019autoaugmentlearningaugmentationpolicies}) con policy IMAGENET. Queste trasformazioni menzionate sono state in seguito rimosse a seguito di riscontro di performance degradata.
 Tale risultato trova giustifica nel fatto che modificare il contenuto dei pixel delle immagini si altera l'informazione associata al blur contenuto in esse.
 
-\paragraph{Alterazioni sull'architettura}
-Sono stati effettuati diversi tentativi per ottimizzare la struttura architetturale originale in modo da snellire le tempistiche e il carico computazionale per l'addestramento ma mantenendo comunque delle
-prestazioni comparabili, per quanto inferiori, all'originale e dei risultati visivamente apprezzabili.
-
-Abbiamo ad esempio provato a sostituire, all'interno del ramo di decoding, l'operazione di deconvoluzione (o convoluzione trasposta) con quella di pixel shuffle (introdotta in~\cite{shi2016realtimesingleimagevideo}), 
-sulla carta più efficiente per operazioni di upsampling; in realtà, questo tentativo non ha portato miglioramenti significativi, per cui non abbiamo mantenuto questa modifica. \\
-In definitiva, abbiamo deciso di intervenire sul modulo \textit{CNNBlock}, impostando numero di blocchi residuali pari a \(\mathbf{n=6}\) in ciascun modulo, generando una sorta di variante intermedia tra la \textit{S} 
-e la \textit{B}. Abbiamo inoltre rimosso completamente il modulo \textit{MSM} al suo interno: sebbene si trattasse di uno dei componenti caratterizzanti dell'architettura di partenza, dati i meccanismi di attenzione implementati,
-abbiamo osservato e valutato, anche grazie agli studi in~\cite{convir}, che in sostanza andava ad appesantire considerevolmente il modello introducendo dei miglioramenti marginali e difficilmente percepibili,
-soprattutto considerati gli obiettivi fissati per questo progetto.
-
-Un'ultima variazione ha previsto l'introduzione della funzione di attivazione GELU (Gaussian Error Linear Unit) al posto della ReLU per tutti i layer convolutivi, che conferisce una convergenza migliore e riduce la 
-possibilità di scomparsa dei gradienti.
-
-\section{Risultati e conclusioni finali}\label{results}
-
 \begin{figure*}[t]
   \centering
-  
-  \begin{floatrow}
-
   \subfloat[\centering Metriche di validazione: SSIM (a sinistra) e PSNR (a destra) su epochs.]{
-    \begin{tikzpicture}[scale = 0.4]
+    \begin{tikzpicture}[scale = 0.5]
     \begin{axis}[
         width=0.9\linewidth,
         xlabel={epoch},
@@ -392,7 +374,7 @@ possibilità di scomparsa dei gradienti.
   }
 
   \subfloat[\centering Training loss nelle epoche]{
-    \begin{tikzpicture}[scale = 0.4]
+    \begin{tikzpicture}[scale = 0.5]
     % Left axis: Content loss
     \begin{axis}[
         width=0.9\linewidth,
@@ -413,11 +395,28 @@ possibilità di scomparsa dei gradienti.
       \end{axis}
     \end{tikzpicture}
   }
-
-  \end{floatrow}
   
   \label{fig:metrics}
 \end{figure*}
+
+\paragraph{Alterazioni sull'architettura}
+Sono stati effettuati diversi tentativi per ottimizzare la struttura architetturale originale in modo da snellire le tempistiche e il carico computazionale per l'addestramento ma mantenendo comunque delle
+prestazioni comparabili, per quanto inferiori, all'originale e dei risultati visivamente apprezzabili.
+
+Abbiamo ad esempio provato a sostituire, all'interno del ramo di decoding, l'operazione di deconvoluzione (o convoluzione trasposta) con quella di pixel shuffle (introdotta in~\cite{shi2016realtimesingleimagevideo}), 
+sulla carta più efficiente per operazioni di upsampling; in realtà, questo tentativo non ha portato miglioramenti significativi, per cui non abbiamo mantenuto questa modifica. \\
+In definitiva, abbiamo deciso di intervenire sul modulo \textit{CNNBlock}, impostando numero di blocchi residuali pari a \(\mathbf{n=6}\) in ciascun modulo, generando una sorta di variante intermedia tra la \textit{S} 
+e la \textit{B}. Abbiamo inoltre rimosso completamente il modulo \textit{MSM} al suo interno: sebbene si trattasse di uno dei componenti caratterizzanti dell'architettura di partenza, dati i meccanismi di attenzione implementati,
+abbiamo osservato e valutato, anche grazie agli studi in~\cite{convir}, che in sostanza andava ad appesantire considerevolmente il modello introducendo dei miglioramenti marginali e difficilmente percepibili,
+soprattutto considerati gli obiettivi fissati per questo progetto.
+
+Un'ultima variazione ha previsto l'introduzione della funzione di attivazione GELU (Gaussian Error Linear Unit) al posto della ReLU per tutti i layer convolutivi, che conferisce una convergenza migliore e riduce la 
+possibilità di scomparsa dei gradienti.
+
+\section{Risultati e conclusioni finali}\label{results}
+a  dskfj g hb asikj dhf jshdb g fkja hsdgkhasbdgs dlg k jbsedgkj hbSKDJG HBs kjedhfgbkjHED BFGKJh aebfkjHABEFKJHBE KJHBRGHBDSIFUHGBKSD JHFGBKJSDHFBGO AHRGUY RHGFUYEWHRGOIU
+ 
+
 
 
 
