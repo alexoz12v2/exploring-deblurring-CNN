@@ -418,6 +418,38 @@ possibilità di scomparsa dei gradienti.
 
 \section{Risultati e conclusioni finali}\label{results}
 
+Nel presente lavoro, i risultati ottenuti dal modello addestrato sono stati confrontati con quelli della versione originale di ConvIR~\cite{convir}. 
+Il nostro approccio, pur mostrando prestazioni complessivamente inferiori rispetto ai modelli basati su architetture Transformer, si dimostra competitivo in alcuni casi, raggiungendo metriche comparabili (in particolare in termini di SSIM) a fronte di una significativa riduzione della complessità architetturale.
+
+La riduzione del numero di parametri è un aspetto chiave: essa è stata ottenuta intervenendo sul numero di blocchi convoluzionali e rimuovendo
+moduli onerosi come il \textit{Multi-Scale Module}. Inoltre, ulteriori strategie di compressione architetturale potrebbero essere facilmente 
+implementate: tra queste, l'impiego sistematico di convoluzioni $1\times1$ in stile Network-in-Network (NiN), già introdotte in
+GoogLeNet~\cite{szegedy2014goingdeeperconvolutions}, consentirebbe un'ulteriore riduzione della dimensione del modello agendo come colli di bottiglia 
+(bottleneck layer) tra layer convolutivi.
+
+Anche per quanto riguarda l'upscaling all'interno del decoder, l'utilizzo della tecnica di 
+\textit{PixelShuffle}~\cite{zamzam2025pixelshufflersimpleimagetranslation} offre un'alternativa priva di parametri apprendibili alle più costose operazioni di 
+deconvoluzione, e può dunque costituire un elemento utile nella progettazione di modelli leggeri.
+
+Nel complesso, i risultati ottenuti mostrano un buon compromesso tra efficienza e qualità di output: nonostante una leggera perdita in termini 
+di accuratezza rispetto al modello completo, l'approccio qui proposto offre vantaggi significativi in termini di tempo di addestramento, 
+risorse richieste e velocità di inferenza.
+
+Di seguito sono riportati alcuni esempi qualitativi dei risultati del modello: per ciascuna immagine viene mostrata la terna 
+costituita da (1) immagine originale sfocata, (2) output del modello deblurred e (3) residuo stimato dal modello, ovvero il 
+contributo appreso che viene sommato all'immagine sfocata per ottenere la versione nitida. Quest'ultimo è stato amplificato 
+per rendere più visibili le regioni corrette.
+
+Oltre alle immagini, vengono presentati:
+\begin{itemize}
+\item grafici delle metriche SSIM e PSNR calcolate sui dati di validazione durante il training;
+\item un grafico della funzione di costo (loss) nel tempo, che mostra l'andamento della convergenza;
+\item le tabelle riepilogative dei valori finali delle metriche di performance.
+\end{itemize}
+
+Tali risultati confermano la validità dell'approccio proposto, evidenziando la possibilità di ottenere prestazioni visivamente 
+e numericamente soddisfacenti anche con modelli leggeri e meno complessi rispetto a quelli basati su self-attention.
+
 \FloatBarrier
 
 \begin{figure*}[p]
