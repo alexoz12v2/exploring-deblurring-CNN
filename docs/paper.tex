@@ -6,6 +6,8 @@
 
 \documentclass[a4paper,10pt,twocolumn]{article}
 
+\usepackage{floatrow}
+
 % Page margins and layout
 \usepackage[margin=2cm]{geometry}
 \usepackage{multicol}
@@ -333,74 +335,12 @@ possibilità di scomparsa dei gradienti.
 \section{Risultati e conclusioni finali}\label{results}
 
 \begin{figure*}[t]
-  \begin{mdframed}[
-      linewidth=1pt,
-      innertopmargin=6pt,
-      innerbottommargin=6pt,
-      innerleftmargin=6pt,
-      innerrightmargin=6pt
-      linecolor=black,
-      nobreak
-    ]
-
-    \centering
-    \subfloat[boh]{
-      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/20250503_184657.jpg}
-    }\hspace{0.1cm}\hfill
-    \subfloat[boh]{
-      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/20250503_184657_deblurred.jpg}
-    }\hspace{0.1cm}\hfill
-    \subfloat[boh]{
-      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/comparison_20250503_184657.jpg}
-    }\hspace{0.1cm}\hfill
-    \\
-    \subfloat[boh]{
-      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/20250503_184720.jpg}
-    }\hspace{0.1cm}\hfill
-    \subfloat[boh]{
-      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/20250503_184720_deblurred.jpg}
-    }\hspace{0.1cm}\hfill
-    \subfloat[boh]{
-      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/comparison_20250503_184720.jpg}
-    }\hspace{0.1cm}\hfill
-    \\
-    \subfloat[boh]{
-      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/20250503_185104.jpg}
-    }\hspace{0.1cm}\hfill
-    \subfloat[boh]{
-      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/20250503_185104_deblurred.jpg}
-    }\hspace{0.1cm}\hfill
-    \subfloat[boh]{
-      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/comparison_20250503_185104.jpg}
-    }\hspace{0.1cm}\hfill
-    \\
-    \subfloat[boh]{
-      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/20250503_185233.jpg}
-    }\hspace{0.1cm}\hfill
-    \subfloat[boh]{
-      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/20250503_185233_deblurred.jpg}
-    }\hspace{0.1cm}\hfill
-    \subfloat[boh]{
-      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/comparison_20250503_185233.jpg}
-    }\hspace{0.1cm}\hfill
-    \\
-
-    \vspace{3pt}
-    \hrule
-    \vspace{3pt}
-    \caption{
-      Una serie di immagini prodotte dal modello: nella prima colonna è presente l'immmagine originale (sfocata), nella seconda l'output della rete,
-      e nella terza il residuo che viene sommato all'immagine originale per ottenere la versione nitida, 
-      il cui valore dei pixel è stato raddoppiato in modo da rendere più visibili le zone interessate dalla correzione dell'immagine
-    }
-  \end{mdframed}
-  \label{foto_esempio}
-\end{figure*}
-
-% First plot: SSIM and PSNR
-\begin{figure}[ht]
   \centering
-  \begin{tikzpicture}
+  
+  \begin{floatrow}
+
+  \subfloat[\centering Metriche di validazione: SSIM (a sinistra) e PSNR (a destra) su epochs.]{
+    \begin{tikzpicture}[scale = 0.4]
     \begin{axis}[
         width=0.9\linewidth,
         xlabel={epoch},
@@ -448,21 +388,16 @@ possibilità di scomparsa dei gradienti.
       \addplot[red, thick, dashed] table[x index=0, y index=1] {figures/validation_metrics_psnr.txt};
       \addlegendentry{PSNR}
     \end{axis}
-  \end{tikzpicture}
+    \end{tikzpicture}
+  }
 
-  \caption{Metriche: SSIM (a sinistra) e PSNR (a destra) su epochs.}
-  \label{fig:ssim_psnr_dual}
-\end{figure}
-
-% Second plot: Content loss and Frequency loss
-\begin{figure}[ht]
-  \centering
-  \begin{tikzpicture}
+  \subfloat[\centering Training loss nelle epoche]{
+    \begin{tikzpicture}[scale = 0.4]
     % Left axis: Content loss
     \begin{axis}[
         width=0.9\linewidth,
         xlabel={epoch},
-        ylabel={Content Loss},
+        ylabel={Loss},
         tick label style={font=\scriptsize},  % Smaller x-axis labels
         xtick distance={400},
         %x tick label style={text width = 1.7cm, align = center, rotate = 70, anchor = north east}, % Optional: rotate for dense x values
@@ -473,44 +408,85 @@ possibilità di scomparsa dei gradienti.
         ymajorgrids=true,
         axis y line*=left,
         axis x line*=bottom,
-        legend style={
-          at={(0.97,0.97)},
-          anchor=south east,
-          cells={align=left},
-          font=\scriptsize
-        }
       ]
-      \addplot[green!60!black, thick] table[x index=0, y index=1] {figures/loss_content.txt};
-      \addlegendentry{Content Loss}
-    \end{axis}
+      \addplot[blue!60!black, thick] table[x index=0, y index=1] {figures/out.txt};
+      \end{axis}
+    \end{tikzpicture}
+  }
 
-    % Right axis: Frequency loss
-    \begin{axis}[
-        width=0.9\linewidth,
-        ylabel={Frequency Loss},
-        yticklabel style={text=orange, font=\scriptsize},
-        ylabel style={text=orange},
-        xtick=\empty,
-        axis y line*=right,
-        axis x line=none,
-        grid=none,
-        enlarge x limits=false,
-        enlarge y limits=false,
-        legend style={
-          at={(0.97,0.84)},
-          anchor=south east,
-          cells={align=left},
-          font=\scriptsize
-        }
-      ]
-      \addplot[orange, thick, dashed] table[x index=0, y index=1] {figures/loss_frequency.txt};
-      \addlegendentry{Frequency Loss}
-    \end{axis}
-  \end{tikzpicture}
+  \end{floatrow}
+  
+  \label{fig:metrics}
+\end{figure*}
 
-  \caption{Training loss nelle epoche: Spatial Loss (a sinistra) and Frequency Loss (a destra).}
-  \label{fig:dual_losses}
-\end{figure}
+
+
+
+
+\begin{figure*}[t]
+  \begin{mdframed}[
+      linewidth=1pt,
+      innertopmargin=6pt,
+      innerbottommargin=6pt,
+      innerleftmargin=6pt,
+      innerrightmargin=6pt
+      linecolor=black,
+      nobreak
+    ]
+
+    \centering
+    \subfloat{
+      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/20250503_184657.jpg}
+    }\hspace{0.1cm}\hfill
+    \subfloat{
+      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/20250503_184657_deblurred.jpg}
+    }\hspace{0.1cm}\hfill
+    \subfloat{
+      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/comparison_20250503_184657.jpg}
+    }\hspace{0.1cm}\hfill
+    \\ \vspace{0.3cm}
+    \subfloat{
+      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/20250503_184720.jpg}
+    }\hspace{0.1cm}\hfill
+    \subfloat{
+      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/20250503_184720_deblurred.jpg}
+    }\hspace{0.1cm}\hfill
+    \subfloat{
+      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/comparison_20250503_184720.jpg}
+    }\hspace{0.1cm}\hfill
+    \\ \vspace{0.3cm}
+    \subfloat{
+      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/20250503_185104.jpg}
+    }\hspace{0.1cm}\hfill
+    \subfloat{
+      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/20250503_185104_deblurred.jpg}
+    }\hspace{0.1cm}\hfill
+    \subfloat{
+      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/comparison_20250503_185104.jpg}
+    }\hspace{0.1cm}\hfill
+    \\ \vspace{0.3cm}
+    \subfloat{
+      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/20250503_185233.jpg}
+    }\hspace{0.1cm}\hfill
+    \subfloat{
+      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/20250503_185233_deblurred.jpg}
+    }\hspace{0.1cm}\hfill
+    \subfloat{
+      \centering\includegraphics[width=0.31\linewidth]{figures/sample_imgs/comparison_20250503_185233.jpg}
+    }\hspace{0.1cm}\hfill
+    \\ \vspace{0.3cm}
+
+    \vspace{3pt}
+    \hrule
+    \vspace{3pt}
+    \caption{
+      Una serie di immagini prodotte dal modello: nella prima colonna è presente l'immmagine originale (sfocata), nella seconda l'output della rete,
+      e nella terza il residuo che viene sommato all'immagine originale per ottenere la versione nitida, 
+      il cui valore dei pixel è stato raddoppiato in modo da rendere più visibili le zone interessate dalla correzione dell'immagine
+    }
+  \end{mdframed}
+  \label{foto_esempio}
+\end{figure*}
 
 \FloatBarrier
 
