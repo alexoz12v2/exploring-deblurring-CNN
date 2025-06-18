@@ -226,9 +226,8 @@ il valore di PSNR in modo da riportarlo nell'intervallo [0, 1], si calcola la me
 Inizialmente il training è stato condotto usando GOPRO, ma dal punteggio è emerso come i modelli addestrati su RSBlur ottenessero una performance più bilanciata, mentre invece quelli addestrati su GOPRO tendevano a dare degli ottimi risultati sul test set, ma dei pessimi
 risultati per quello che riguarda RSBlur. Nel corso dell'addestramento è stato provato come dataset anche un misto di RSBlur e GOPRO, con scarsi risultati, e alla fine si è deciso di usare esclusivamente RSBlur.
 
-Il training set utilizzato consiste quindi in un sottoinsieme degli esempi di RSBlur, composto da 2500 immagini per il training set (di cui il 15\% è dedicato alla validazione) e 1000 per il test set. Sono stati prodotti diversi sottoinsiemi di RSBlur (con un numero di immagini
-simile se non uguale a quelli citati in precedenza), compreso uno a risoluzione più bassa dell'originale, ottenuto tramite la funzione \texttt{resize(...)}\footnote{\url{https://docs.opencv.org/3.4/da/d54/group__imgproc__transform.html}} di OpenCV.
-La versione finale consiste in un training set di 2755 esempi e un test set di 1000 esempi, ottenuto tramite crop delle immagini originale per riportare tutte le immagini alla stessa dimensione (invece che \texttt{resize} di OpenCV che interpola).
+Il training set utilizzato consiste quindi in un sottoinsieme degli esempi di RSBlur, che comprende un totale di 11857 coppie di immagini. Sono stati prodotti diversi sottoinsiemi di RSBlur, compreso uno a risoluzione più bassa dell'originale, ottenuto tramite la funzione \texttt{resize(...)}\footnote{\url{https://docs.opencv.org/3.4/da/d54/group__imgproc__transform.html}} di OpenCV,
+ma la versione finale consiste in un training set di 2755 esempi e un test set di 1000 esempi, ottenuto tramite crop delle immagini originale per riportare tutte le immagini alla stessa dimensione (invece che \texttt{resize} di OpenCV che interpola).
 
 Oltre ai set citati, abbiamo anche usato un set di 32 immagini sfocate, senza versione nitida, scattato da noi, in modo da ottenere un riscontro più pratico e intuitivo (seppur non molto oggettivo). Nella sezione \ref{results} si possono trovare i risultati su alcune di queste immagini.
 
@@ -389,7 +388,11 @@ possibilità di scomparsa dei gradienti.
     \vspace{3pt}
     \hrule
     \vspace{3pt}
-    \caption{roba}
+    \caption{
+      Una serie di immagini prodotte dal modello: nella prima colonna è presente l'immmagine originale (sfocata), nella seconda l'output della rete,
+      e nella terza il residuo che viene sommato all'immagine originale per ottenere la versione nitida, 
+      il cui valore dei pixel è stato raddoppiato in modo da rendere più visibili le zone interessate dalla correzione dell'immagine
+    }
   \end{mdframed}
   \label{foto_esempio}
 \end{figure*}
