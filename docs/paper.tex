@@ -318,11 +318,17 @@ Tale risultato trova giustifica nel fatto che modificare il contenuto dei pixel 
 
 \paragraph{Alterazioni sull'Architettura}
 Sono stati effettuati diversi tentativi per ottimizzare la struttura architetturale originale in modo da snellire le tempistiche e il carico computazionale per l'addestramento ma mantenendo comunque delle
-prestazioni comparabili e dei risultati sensibili  
-La nostra scelta è ricaduta in definitiva  n na variante intermedia tra la \textit{S} e la \textit{B}, con \(\mathbf{n=6}\) blocchi residuali.
+prestazioni comparabili, per quanto inferiori, all'originale e dei risultati visivamente apprezzabili.
 
-Abbiamo inoltre modificato il \textit{CNNBlock} rimuovendo completamente il modulo \textit{MSM} al suo interno. In questo modo, il training è risultato molto più rapido ed efficiente con solo una minima perdita di qualità del risultato finale.
+Abbiamo ad esempio provato a sostituire, all'interno del ramo di decoding, l'operazione di deconvoluzione (o convoluzione trasposta) con quella di pixel shuffle (introdotta in~\cite{shi2016realtimesingleimagevideo}), 
+sulla carta più efficiente per operazioni di upsampling; in realtà, questo tentativo non ha portato miglioramenti significativi, per cui non abbiamo mantenuto questa modifica. \\
+In definitiva, abbiamo deciso di intervenire sul modulo \textit{CNNBlock}, impostando numero di blocchi residuali pari a \(\mathbf{n=6}\) in ciascun modulo, generando una sorta di variante intermedia tra la \textit{S} 
+e la \textit{B}. Abbiamo inoltre rimosso completamente il modulo \textit{MSM} al suo interno: si tratta di uno dei componenti caratterizzanti dell'architettura di partenza, dati i meccanismi di attenzione implementati,
+ma abbiamo osservato e valutato, anche grazie agli studi in~\cite{convir}, che in sostanza andava ad appesantire considerevolmente il modello introducendo dei miglioramenti marginali e difficilmente percepibili,
+soprattutto considerati gli obiettivi fissati per questo progetto.
 
+Un'ultima variazione ha previsto l'introduzione della funzione di attivazione GELU (Gaussian Error Linear Unit) al posto della ReLU per tutti i layer convolutivi, che conferisce una convergenza migliore e riduce la 
+possibilità di scomparsa dei gradienti.
 
 \section{Results}\label{results}
 

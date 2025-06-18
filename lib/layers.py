@@ -6,7 +6,7 @@ import torch.nn.functional as nnfunc
 class BasicConv(nn.Module):
     """BasicConv: Classe implementante un layer convolutivo (sia in downsampling che in transpose) sandwitched da operazioni comuni, ovvero
     - Batch Normalization
-    - Nonlinearity di tipo ReLU
+    - Nonlinearity di tipo GELU
     Attributes:
         main: nn.Sequential contenente le operazioni compiute dal layer convolutivo
     """
