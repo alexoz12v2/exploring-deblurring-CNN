@@ -219,8 +219,16 @@ GOPRO è un dataset creato applicando un motion blur artificiale ai frame di una
 una versione sfocata e una nitida della stessa immagine.
 
 Per cercare di ottenere un risultato migliore possibile, abbiamo condotto dei test su entrambi i dataset che risultassero in una singola metrica di performance complessiva, nello specifico:
-\[ \text{Score} = \frac{1}{2}\sum_{i=1}^2 100 \cdot avg(\frac{PSNR_i}{33}, SSIM_i)\]
-Dove $i$ indicizza il dataset su cui è stato svolto il test. Questa metrica è stata definita in modo da dare lo stesso peso alle metriche di SSIM e PSNR, oltre che ai due dataset: per ogni dataset si calcolano SSIM e PSNR medio, dopodichè si normalizza
+\[ \text{Score} = \frac{1}{2}\sum_{i=1}^2 100 \cdot avg(\frac{\text{PSNR}_i}{33}, \text{SSIM}_i), \]
+dove $i$ indicizza il dataset su cui è stato svolto il test;
+\[ \text{PSNR} = 10 \cdot \log_{10} ( \frac{\text{MAX}_{\mathbf{Y}}^2}{\text{MSE}} ), \]
+con l'MSE (Mean Squared Error) così definito: 
+\[ \text{MSE} = \frac{1}{mn} \sum_{i=1}^{m} \sum_{j=1}^{n} {[\hat{\mathbf{I}}(i,j) - \mathbf{Y}(i,j)]}^2, \]
+che rappresenta una media della differenza pixel per pixel tra l'immagine elaborata dalla rete e il ground truth (rispettivamente \(\hat{\mathbf{I}}\) e \(\mathbf{Y}\)), ciascuna di dimensioni \(m \times n\);
+\[ \text{SSIM}(\hat{\mathbf{I}}, \mathbf{Y}) = \frac{(2 \mu_I \mu_Y + C_1)(2 \sigma_{IY} + C_2)}{(\mu_I^2 + \mu_Y^2 + C_1)(\sigma_I^2 + \sigma_Y^2 + C_2)}, \]
+dove \(\mu_x\) rappresenta la media complessiva dell'immagine \(x\) e \(\sigma_x\) la sua deviazione standard.
+
+Questa metrica complessiva è stata definita in modo da dare lo stesso peso alle metriche di SSIM e PSNR, oltre che ai due dataset: per ogni dataset si calcolano SSIM e PSNR medio, dopodichè si normalizza
 il valore di PSNR in modo da riportarlo nell'intervallo [0, 1], si calcola la media tra PSNR e SSIM e la si moltiplica per 100, in modo da ottenere dei valori nell'intervallo [0, 100]; ottenuto questo valore quindi lo score è dato dalla media sui dataset.
 
 Inizialmente il training è stato condotto usando GOPRO, ma dal punteggio è emerso come i modelli addestrati su RSBlur ottenessero una performance più bilanciata, mentre invece quelli addestrati su GOPRO tendevano a dare degli ottimi risultati sul test set, ma dei pessimi
