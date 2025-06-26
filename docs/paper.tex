@@ -158,7 +158,7 @@ Un'implementazione di tale metodo di Deblurring si basa su un metodo di ottimizz
 In questa metodologia, il blur kernel \`e ignoto\footnote{I metodi con neural network rientrano in questa categoria}, dunque parte dell'algoritmo \`e la \textit{PSF estimation}, modellata come
 stima di una stima di densit\`a di probabilit\`a.
 
-\section{Architettura del modello}
+\section{Architettura del modello}\footnote{Codice Originale al seguente link: \url{https://github.com/c-yn/ConvIR/tree/main}}
 L'architettura utilizzata in~\cite{convir} si basa, come detto, sulla struttura tipica di una U-Net con encoder-decoder convoluzionali, ed estrazione delle feature effettuata a risoluzioni multiple, quindi effettuando downsampling all'immagine di partenza.
 Di rilevante importanza in tal senso è il ruolo dei \textit{Multi-Scale Modules} (\textit{MSM}), che hanno l'obiettivo di implementare meccanismi di attenzione di diversa forma (quadrata e rettangolare) e dimensione.
 
